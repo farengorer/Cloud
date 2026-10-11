@@ -1,0 +1,11 @@
+numpy
+pandas
+scipy
+networkx
+osmnx>=2.0
+shapely>=2.0
+geopandas
+pyproj
+matplotlib
+contourpy
+pytest
