@@ -59,3 +59,7 @@ python -m yandex_accessibility uds data/yaroslavl/uds.gpkg --out results/yarosla
 
 Изохроны по графу УДС без калибровки: `python -m yandex_accessibility uds-iso data/yaroslavl/uds.gpkg results/yaroslavl/isochrones_uds.png`
 (скорости по классам — допущение, воды и общественного транспорта в этой версии нет).
+
+Калибровка по замерам (режим Б, 100 точек): `yandex_accessibility/calibrate_uds.py` — глобальная подгонка, групповая и локальная
+поправки, принятие по LOO; результаты в `results/yaroslavl/calibration_uds.csv`, `residuals_uds.csv`, `groups_*.csv`,
+`isochrones_uds_calibrated.png`.
