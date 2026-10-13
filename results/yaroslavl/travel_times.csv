@@ -290,3 +290,6 @@ point_id,slot,direction,minutes,km,departure,status
 97,08:00,to_center,22,,,ok
 97,11:00,to_center,18,,,ok
 97,18:00,from_center,20,,,ok
+98,08:00,to_center,19,,,ok
+98,11:00,to_center,16,,,ok
+98,18:00,from_center,19,,,ok
