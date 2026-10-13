@@ -39,7 +39,7 @@ def apply_calibration(field_min, a, b):
     return a * field_min + b
 
 
-def draw(grid, fields, titles, out_png, city_name, levels=ISOCHRONES_MIN, water=None, pdf=True):
+def draw(grid, fields, titles, out_png, city_name, levels=ISOCHRONES_MIN, water=None, pdf=True, suptitle=None):
     """fields: список полей (мин по шкале Яндекса), по одной панели на срез суток."""
     fig, axes = plt.subplots(1, len(fields), figsize=(5.4 * len(fields), 5.8), constrained_layout=True)
     axes = np.atleast_1d(axes)
@@ -62,7 +62,7 @@ def draw(grid, fields, titles, out_png, city_name, levels=ISOCHRONES_MIN, water=
         ax.set_aspect("equal"); ax.set_title(title, fontsize=11)
         ax.set_xlabel("x, км (UTM)"); ax.tick_params(labelsize=8)
     axes[0].set_ylabel("y, км (UTM)")
-    fig.suptitle(f"{city_name}: изохроны доступности центра по прогнозу Яндекс Карт", fontsize=12)
+    fig.suptitle(suptitle or f"{city_name}: изохроны доступности центра по прогнозу Яндекс Карт", fontsize=12)
     fig.savefig(out_png, dpi=200)
     if pdf:
         fig.savefig(str(out_png).rsplit(".", 1)[0] + ".pdf")

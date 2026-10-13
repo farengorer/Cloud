@@ -68,6 +68,10 @@ def main(argv=None):
     if argv is None:
         import sys
         argv = sys.argv[1:]
+    if argv and argv[0] == "uds-iso":
+        from . import uds_iso
+        uds_iso.main(argv[1], argv[2] if len(argv) > 2 else "results/yaroslavl/isochrones_uds.png")
+        return
     if argv and argv[0] == "uds":  # python -m yandex_accessibility uds слой.gpkg [--out results/yaroslavl]
         ap = argparse.ArgumentParser(prog="yandex_accessibility uds")
         ap.add_argument("step")

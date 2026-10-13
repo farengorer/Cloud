@@ -56,3 +56,6 @@ python -m yandex_accessibility uds data/yaroslavl/uds.gpkg --out results/yarosla
 
 Замеры: 08:00 и 11:00 — из центра в точку, 18:00 — из точки в центр. Ссылки — `yandex_links.csv`,
 ввод «мин|км» — `points_yandex.html`.
+
+Изохроны по графу УДС без калибровки: `python -m yandex_accessibility uds-iso data/yaroslavl/uds.gpkg results/yaroslavl/isochrones_uds.png`
+(скорости по классам — допущение, воды и общественного транспорта в этой версии нет).
