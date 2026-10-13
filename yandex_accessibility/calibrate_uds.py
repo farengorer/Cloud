@@ -221,3 +221,61 @@ def draw_isochrones(net, models, out_png):
         titles.append(f"{name} ({way}), {chosen}, a={a:.2f}, b={b:.1f} мин")
     isochrones.draw(grid, fields, titles, out_png, "Ярославль",
                     suptitle="Ярославль: изохроны на автомобиле 15/30/45/60 мин по графу УДС, калибровка по Яндекс Картам (20.10.2026)")
+
+
+def edge_map(net, models, out_dir):
+    """Эффективная скорость рёбер по срезам и замедление «пик/свободный поток» (карта и gpkg).
+    Время ребра = a·(базовое время·m_группы·l_локальный): масштаб `a` калибровки включён, сдвиг `b` — нет,
+    поэтому скорость — оценка «чистого движения» по ребру. Оценка по районам и классам, не замер на сегменте."""
+    import geopandas as gpd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+    from shapely.geometry import LineString
+
+    km = net.len / 1000
+    eff = {}
+    for name, (slot, (a, b, m, l, _), chosen) in models.items():
+        t_h = a * slot.base * m[net.group] * l / 60
+        eff[name] = km / t_h  # км/ч
+    sp08, sp11, sp18 = eff["08:00"], eff["11:00"], eff["18:00"]
+    ratio = sp11 / sp08  # во сколько раз утром в центр медленнее, чем днём
+    xy = np.array(net.nodes, float)
+    # одно ребро на пару узлов (прямое и обратное усредняем)
+    key = np.minimum(net.u, net.v) * net.n + np.maximum(net.u, net.v)
+    df = pd.DataFrame(dict(key=key, u=net.u, v=net.v, rank=net.rank, group=net.group, len_m=net.len,
+                           speed_0800=sp08, speed_1100=sp11, speed_1800=sp18, slowdown_0800_vs_1100=ratio))
+    agg = df.groupby("key").agg(u=("u", "first"), v=("v", "first"), rank=("rank", "first"), group=("group", "first"),
+                                len_m=("len_m", "mean"), speed_0800=("speed_0800", "mean"), speed_1100=("speed_1100", "mean"),
+                                speed_1800=("speed_1800", "mean"), slowdown_0800_vs_1100=("slowdown_0800_vs_1100", "mean")).reset_index(drop=True)
+    names = group_names()
+    agg["group_name"] = [names[g] for g in agg["group"]]
+    geom = [LineString([xy[u], xy[v]]) for u, v in zip(agg.u, agg.v)]
+    gdf = gpd.GeoDataFrame(agg.drop(columns=["u", "v"]), geometry=geom, crs=32637).to_crs(4326)
+    gdf.to_file(f"{out_dir}/edges_speed_uds.gpkg", layer="edges", driver="GPKG")
+
+    segs = np.array([[xy[u] / 1000, xy[v] / 1000] for u, v in zip(agg.u, agg.v)])
+    panels = [("08:00 в центр, км/ч", "speed_0800", "RdYlGn", 10, 45), ("11:00 в центр, км/ч", "speed_1100", "RdYlGn", 10, 45),
+              ("18:00 из центра, км/ч", "speed_1800", "RdYlGn", 10, 45),
+              ("замедление 08:00 к 11:00, ×", "slowdown_0800_vs_1100", "YlOrRd", 1.0, 2.0)]
+    fig, axes = plt.subplots(2, 2, figsize=(13, 14), constrained_layout=True)
+    cx, cy = xy[net.src] / 1000
+    for ax, (title, col, cmap, lo, hi) in zip(axes.ravel(), panels):
+        order = np.argsort(agg[col].to_numpy()) if col != "slowdown_0800_vs_1100" else np.argsort(agg[col].to_numpy())
+        if col != "slowdown_0800_vs_1100":
+            order = order[::-1]  # медленные рисуем сверху
+        major = agg["rank"].to_numpy() >= 3
+        for sel, lw, alpha in ((~major, 0.3, 0.25), (major, 1.1, 1.0)):
+            idx = [i for i in order if sel[i]]
+            lc = LineCollection(segs[idx], array=agg[col].to_numpy()[idx], cmap=cmap, linewidths=lw, alpha=alpha)
+            lc.set_clim(lo, hi)
+            ax.add_collection(lc)
+        ax.plot(cx, cy, "s", color="black", ms=5)
+        ax.set_xlim(cx - 22, cx + 22); ax.set_ylim(cy - 22, cy + 22)
+        ax.set_aspect("equal"); ax.set_title(title); ax.tick_params(labelsize=8)
+        fig.colorbar(lc, ax=ax, shrink=0.6)
+    fig.suptitle("Ярославль: эффективная скорость УДС по калибровке Яндекса (оценка по классу дороги, зоне и району)", fontsize=12)
+    fig.savefig(f"{out_dir}/edges_speed_uds.png", dpi=150)
+    plt.close(fig)
+    return gdf
