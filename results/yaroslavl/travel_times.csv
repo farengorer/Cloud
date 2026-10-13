@@ -1,4 +1,1 @@
 point_id,slot,direction,minutes,km,departure,status
-20,08:00,to_center,36,,,ok
-20,11:00,to_center,21,,,ok
-20,18:00,from_center,23,,,ok
