@@ -2,7 +2,7 @@
 
 Состав: 48 базовых (8 направлений × 6 колец) + 2 близкие + посёлки/ЖК + заполнение пробелов.
 Часть точек помечена `holdout` — их держат вне подгонки для независимой проверки.
-Замеры: 08:00 и 11:00 — из центра в точку; 18:00 — из точки в центр."""
+Замеры: 08:00 и 11:00 — из точки в центр; 18:00 — из центра в точку."""
 import html
 import re
 from urllib.parse import quote
@@ -18,7 +18,7 @@ from .config import BEARINGS, NEAR_POINTS, RING_KM
 
 EPSG = 32637
 CENTER_NAME = "Богоявленская площадь"
-SLOTS = (("08:00", "from_center"), ("11:00", "from_center"), ("18:00", "to_center"))
+SLOTS = (("08:00", "to_center"), ("11:00", "to_center"), ("18:00", "from_center"))
 DEFAULT_DATE = "2026-10-20"  # вторник, будущий будний день
 N_TOTAL = 100
 HOLDOUT_SHARE = 0.2

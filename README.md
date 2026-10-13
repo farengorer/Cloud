@@ -54,7 +54,7 @@ python -m yandex_accessibility uds data/yaroslavl/uds.gpkg --out results/yarosla
 калибровки). `holdout=True` — точки вне подгонки (~20 % внутри каждой роли). `snap_km` — сдвиг привязки.
 Слой покрывает в основном город, поэтому часть дальних колец (18–28 км) пропущена и заменена заполнением.
 
-Замеры: 08:00 и 11:00 — из центра в точку, 18:00 — из точки в центр. Ссылки — `yandex_links.csv`,
+Замеры: 08:00 и 11:00 — из точки в центр, 18:00 — из центра в точку. Ссылки — `yandex_links.csv`,
 ввод «мин|км» — `points_yandex.html`.
 
 Изохроны по графу УДС без калибровки: `python -m yandex_accessibility uds-iso data/yaroslavl/uds.gpkg results/yaroslavl/isochrones_uds.png`
