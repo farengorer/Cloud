@@ -59,7 +59,22 @@ def cmd_isochrones(city, d, args):
     isochrones.draw(grid, panels, titles, d / f"{city.key}_isochrones_yandex.png", city.name, water=water)
 
 
+def cmd_uds(args):
+    from . import uds
+    uds.main(args.gpkg, args.out, args.date if args.date != DEFAULT_DATE else uds.DEFAULT_DATE)
+
+
 def main(argv=None):
+    if argv is None:
+        import sys
+        argv = sys.argv[1:]
+    if argv and argv[0] == "uds":  # python -m yandex_accessibility uds слой.gpkg [--out results/yaroslavl]
+        ap = argparse.ArgumentParser(prog="yandex_accessibility uds")
+        ap.add_argument("step")
+        ap.add_argument("gpkg")
+        ap.add_argument("--out", default="results/yaroslavl")
+        ap.add_argument("--date", default=DEFAULT_DATE)
+        return cmd_uds(ap.parse_args(argv))
     ap = argparse.ArgumentParser(prog="yandex_accessibility")
     ap.add_argument("step", choices=["graph", "points", "links", "isochrones"])
     ap.add_argument("city", choices=list(CITIES))
