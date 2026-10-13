@@ -71,3 +71,6 @@ point_id,slot,direction,minutes,km,departure,status
 24,08:00,to_center,39,,,ok
 24,11:00,to_center,29,,,ok
 24,18:00,from_center,33,,,ok
+25,08:00,to_center,34,,,ok
+25,11:00,to_center,25,,,ok
+25,18:00,from_center,28,,,ok
