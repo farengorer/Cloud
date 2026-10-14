@@ -155,11 +155,12 @@ def run(path, times_csv, points_csv, out_dir):
     pt_nodes = [net.idx[(int(x), int(y))] for x, y in zip(pts.x_utm, pts.y_utm)]
     D = net.undirected_dist(pt_nodes)
     hold = pts["holdout"].to_numpy()
-    tr, te = np.flatnonzero(~hold), np.flatnonzero(hold)
     rows, resid, models = [], [], {}
     for name, (rush, to_c) in SLOTS.items():
         slot = Slot(net, rush, to_c, pt_nodes)
-        Y = tt[tt.slot == name].set_index("point_id").minutes.reindex(pts.index).to_numpy(float)
+        Y = tt[(tt.slot == name) & (tt.status == "ok")].set_index("point_id").minutes.reindex(pts.index).to_numpy(float)
+        valid = ~np.isnan(Y)
+        tr, te = np.flatnonzero(~hold & valid), np.flatnonzero(hold & valid)
         variants = {"глобальная": dict()}
         # выбор λ групповой поправки по LOO на обучающих точках
         best_lam, best = None, None
@@ -185,7 +186,7 @@ def run(path, times_csv, points_csv, out_dir):
             rows.append(dict(slot=name, variant=vname, chosen=vname == chosen, a=a, b_min=b,
                              lam=variants[vname].get("lam"), **{k: v for k, v in r.items() if k != "model"}))
         # итоговая модель выбранного варианта — по всем 100 точкам (для изохрон)
-        allp = np.arange(len(pts))
+        allp = np.flatnonzero(valid)
         kw = dict(variants[chosen])
         final = fit(slot, allp, Y, **kw)
         models[name] = (slot, final, chosen)
@@ -279,3 +280,26 @@ def edge_map(net, models, out_dir):
     fig.savefig(f"{out_dir}/edges_speed_uds.png", dpi=150)
     plt.close(fig)
     return gdf
+
+
+def out_of_sample(path, points_csv, times_csv, n_old, cal_csv):
+    """Модель, подогнанная по первым n_old точкам (выбранный вариант каждого среза), проверяется на остальных."""
+    net = Net(path)
+    pts = pd.read_csv(points_csv).set_index("point_id")
+    tt = pd.read_csv(times_csv)
+    pt_nodes = [net.idx[(int(x), int(y))] for x, y in zip(pts.x_utm, pts.y_utm)]
+    D = net.undirected_dist(pt_nodes)
+    cal = pd.read_csv(cal_csv)
+    rows = []
+    for name, (rush, to_c) in SLOTS.items():
+        slot = Slot(net, rush, to_c, pt_nodes)
+        Y = tt[(tt.slot == name) & (tt.status == "ok")].set_index("point_id").minutes.reindex(pts.index).to_numpy(float)
+        tr = np.array([i for i in range(n_old) if not np.isnan(Y[i])])
+        te = np.array([i for i in range(n_old, len(pts)) if not np.isnan(Y[i])])
+        sub = cal[(cal.slot == name)]
+        lam = float(sub[sub.chosen].lam.iloc[0]) if sub[sub.chosen].lam.notna().any() else None
+        for vname, kw in (("глобальная", dict()), ("групповая", dict(lam=lam)), ("групповая+локальная", dict(lam=lam, local=LOCAL_SIGMA_M, D=D))):
+            model = fit(slot, tr, Y, **kw)
+            pr = predict(model, slot)
+            rows.append(dict(slot=name, variant=vname, n_new=len(te), **metrics(Y[te], pr[te]), a=model[0], b=model[1]))
+    return pd.DataFrame(rows)

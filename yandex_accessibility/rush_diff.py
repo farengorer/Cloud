@@ -74,3 +74,74 @@ def run(points_csv, times_csv, out_png, out_csv):
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
     return pd.DataFrame(rows), d, r
+
+
+def run_network(path, points_csv, times_csv, out_png, out_csv, bandwidths=(2.0, 3.0, 4.0, 6.0), max_gap_km=5.0):
+    """То же, но ядро по длине пути по УДС (через реку — только по мосту). Сравнение с евклидовым ядром по LOO."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from .calibrate_uds import Net
+
+    net = Net(path)
+    p = pd.read_csv(points_csv).set_index("point_id")
+    tt = pd.read_csv(times_csv)
+    tt = tt[tt.status == "ok"]
+    t = tt.pivot(index="point_id", columns="slot", values="minutes").reindex(p.index)
+    ok = (t["08:00"].notna() & t["11:00"].notna()).to_numpy()
+    p, t = p[ok], t[ok]
+    d = (t["08:00"] - t["11:00"]).to_numpy(float)
+    r = (t["08:00"] / t["11:00"]).to_numpy(float)
+    nodes = np.array([net.idx[(int(x), int(y))] for x, y in zip(p.x_utm, p.y_utm)])
+    D = net.undirected_dist(nodes)  # точки × узлы
+    DP = D[:, nodes] / 1000  # км между точками
+    px, py = p.x_utm.to_numpy(float), p.y_utm.to_numpy(float)
+    E = np.hypot(px[:, None] - px[None], py[:, None] - py[None]) / 1000
+    rows, best_h, fields = [], {}, {}
+
+    def loo_k(Dm, v, h):
+        W = np.exp(-0.5 * (Dm / h) ** 2) + 1e-12
+        np.fill_diagonal(W, 0)
+        return (W * v[None]).sum(1) / W.sum(1)
+
+    for name, v in (("diff_min", d), ("ratio", r)):
+        base = float(np.sqrt(((v - v.mean()) ** 2).mean() * len(v) / (len(v) - 1)))
+        for kind, Dm, hs in (("euclid", E, (1.5, 2.5, 4.0)), ("network", DP, bandwidths)):
+            for h in hs:
+                e = float(np.sqrt(((loo_k(Dm, v, h) - v) ** 2).mean()))
+                rows.append(dict(var=name, kernel=kind, bandwidth_km=h, loo_rmse=e, const_rmse=base, n=len(v)))
+    res = pd.DataFrame(rows)
+    res.to_csv(out_csv, index=False)
+
+    # карта по лучшему сетевому ядру
+    from .field import Grid
+    from scipy.spatial import cKDTree
+    xy = np.array(net.nodes, float)
+    cx, cy = xy[net.src]
+    grid = Grid(cx, cy)
+    X, Y = grid.centers()
+    q = np.c_[X.ravel(), Y.ravel()]
+    dn, ni = cKDTree(xy).query(q)
+    far = (dn > 1500) | (np.hypot(q[:, 0] - cx, q[:, 1] - cy) > 30000)
+    fig, axes = plt.subplots(1, 2, figsize=(14, 7), constrained_layout=True)
+    for ax, (name, v, title) in zip(axes, (("diff_min", d, "утро − день, минуты"), ("ratio", r, "утро / день, ×"))):
+        sub = res[(res["var"] == name) & (res.kernel == "network")]
+        h = float(sub.loc[sub.loo_rmse.idxmin(), "bandwidth_km"])
+        W = np.exp(-0.5 * (D[:, ni] / 1000 + dn[None] / 1000) ** 2 / h ** 2) + 1e-12
+        f = (W * v[:, None]).sum(0) / W.sum(0)
+        gap = (D[:, ni] / 1000 + dn[None] / 1000).min(0)
+        f[(gap > max_gap_km) | far] = np.nan
+        f = f.reshape(X.shape)
+        lo, hi = np.nanpercentile(v, 5), np.nanpercentile(v, 95)
+        im = ax.pcolormesh(grid.xs / 1000, grid.ys / 1000, f, cmap="YlOrRd", vmin=lo, vmax=hi, shading="auto")
+        ax.scatter(px / 1000, py / 1000, c=v, cmap="YlOrRd", vmin=lo, vmax=hi, s=24, edgecolor="k", linewidth=0.5)
+        ax.plot(cx / 1000, cy / 1000, "s", color="black", ms=6)
+        ax.set_xlim(cx / 1000 - 22, cx / 1000 + 22); ax.set_ylim(cy / 1000 - 22, cy / 1000 + 22)
+        ax.set_aspect("equal")
+        e = sub.loo_rmse.min()
+        ax.set_title(f"{title}\nядро по сети {h} км, LOO-RMSE {e:.2f} (константа {sub.const_rmse.iloc[0]:.2f})", fontsize=10)
+        fig.colorbar(im, ax=ax, shrink=0.7)
+    fig.suptitle(f"Ярославль: интерполяция разницы утро/день по сетевому расстоянию, {len(v)} точек", fontsize=12)
+    fig.savefig(out_png, dpi=150)
+    plt.close(fig)
+    return res
