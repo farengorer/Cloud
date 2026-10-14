@@ -309,3 +309,58 @@ def out_of_sample(path, points_csv, times_csv, n_old, cal_csv):
             pr = predict(model, slot)
             rows.append(dict(slot=name, variant=vname, n_new=len(te), **metrics(Y[te], pr[te]), a=model[0], b=model[1]))
     return pd.DataFrame(rows)
+
+
+def edge_minutes_map(net, models, points_csv, out_png, out_gpkg, max_gap_km=3.0):
+    """Абсолютное время по Яндексу (мин) для каждого ребра: a·T_узла + b по калиброванной модели выбранного варианта.
+    08:00 и 11:00 — до центра, 18:00 — из центра. Рёбра дальше max_gap_km по сети от замеров не закрашиваются."""
+    import geopandas as gpd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+    from shapely.geometry import LineString
+
+    pts = pd.read_csv(points_csv)
+    nodes = np.array([net.idx[(int(x), int(y))] for x, y in zip(pts.x_utm, pts.y_utm)])
+    gap = (net.undirected_dist(nodes) / 1000).min(0)
+    xy = np.array(net.nodes, float)
+    u, v = net.u, net.v
+    key = np.minimum(u, v) * net.n + np.maximum(u, v)
+    cols = {}
+    for name, (slot, (a, b, m, l, _), chosen) in models.items():
+        dist, _, _ = slot.run(m[net.group] * l)
+        node_min = a * dist + b
+        cols[name] = (node_min[u] + node_min[v]) / 2
+    df = pd.DataFrame(dict(key=key, u=u, v=v, rank=net.rank, gap_km=np.maximum(gap[u], gap[v]),
+                           t_0800=cols["08:00"], t_1100=cols["11:00"], t_1800=cols["18:00"]))
+    e = df.groupby("key").first().reset_index(drop=True)
+    far = e.gap_km > max_gap_km
+    for c in ("t_0800", "t_1100", "t_1800"):
+        e.loc[far, c] = np.nan
+    gdf = gpd.GeoDataFrame(e.drop(columns=["u", "v"]), geometry=[LineString([xy[a], xy[b]]) for a, b in zip(e.u, e.v)], crs=32637).to_crs(4326)
+    gdf.to_file(out_gpkg, layer="edges", driver="GPKG")
+
+    segs = np.array([[xy[a] / 1000, xy[b] / 1000] for a, b in zip(e.u, e.v)])
+    cx, cy = xy[net.src] / 1000
+    fig, axes = plt.subplots(1, 3, figsize=(21, 7.5), constrained_layout=True)
+    for ax, col, title in zip(axes, ("t_0800", "t_1100", "t_1800"),
+                              ("08:00, из точки в центр, мин", "11:00, из точки в центр, мин", "18:00, из центра в точку, мин")):
+        vals = e[col].to_numpy()
+        has = ~np.isnan(vals)
+        major = e["rank"].to_numpy() >= 3
+        ax.add_collection(LineCollection(segs[~has], colors="#d9d9d9", linewidths=0.3))
+        for sel, lw, al in ((has & ~major, 0.5, 0.45), (has & major, 1.5, 1.0)):
+            idx = np.flatnonzero(sel)
+            idx = idx[np.argsort(vals[idx])]
+            lc = LineCollection(segs[idx], array=vals[idx], cmap="viridis_r", linewidths=lw, alpha=al)
+            lc.set_clim(0, 50)
+            ax.add_collection(lc)
+        ax.plot(cx, cy, "s", color="red", ms=7, zorder=6)
+        ax.set_xlim(cx - 21, cx + 21); ax.set_ylim(cy - 21, cy + 21)
+        ax.set_aspect("equal"); ax.set_title(title)
+        fig.colorbar(lc, ax=ax, shrink=0.7)
+    fig.suptitle(f"Ярославль: время в пути по Яндекс Картам до/из Богоявленской площади (калиброванная модель УДС, {len(pts)} точек замеров; серое — дальше {max_gap_km:g} км от замеров)", fontsize=11)
+    fig.savefig(out_png, dpi=140)
+    plt.close(fig)
+    return e
