@@ -172,3 +172,88 @@ def report(R, out_dir):
     fig.savefig(out / "forecast_validation.png", dpi=130, bbox_inches="tight")
     plt.close(fig)
     return by, e
+
+
+def iso_change(net, models, R, points_csv, out_png, out_gpkg, levels=(10, 20, 30, 45), cover_km=5.0, simplify_m=60.0):
+    """Изохроны 08:00 (в центр): база и проектные сценарии. Прирост времени узлов из модели спроса (в шкале Яндекса)
+    добавляется к калиброванному времени; контуры строятся тем же способом, что и в базе."""
+    import contourpy
+    import geopandas as gpd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from scipy.ndimage import binary_fill_holes, gaussian_filter, label
+    from scipy.spatial import cKDTree
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from .field import Grid
+    from .uds_iso import surface
+
+    slot, (a, b, m, l, _), chosen = models["08:00"]
+    dist, _, _ = slot.run(m[net.group] * l)
+    pts = pd.read_csv(points_csv)
+    cx, cy = net.nodes[net.src]
+    grid = Grid(cx, cy)
+    X, Y = grid.centers()
+    q = np.c_[X.ravel(), Y.ravel()]
+    d_pt = cKDTree(np.c_[pts.x_utm, pts.y_utm]).query(q)[0].reshape(X.shape) / 1000
+    d_road = cKDTree(np.array(net.nodes, float)).query(q)[0].reshape(X.shape) / 1000
+    unc = (d_pt > cover_km) | (d_road > 1.5)
+    ci, cj = int((cy - grid.y0) // grid.cell), int((cx - grid.x0) // grid.cell)
+
+    def field(delta):
+        tm = {net.nodes[i]: dist[i] + (delta[i] / a if delta is not None else 0.0) for i in range(net.n) if np.isfinite(dist[i])}
+        return np.where(unc, np.nan, a * surface(grid, None, tm) + b)
+
+    def nested(f):
+        out, prev = [], None
+        for lev in levels:
+            mask = np.nan_to_num(f, nan=1e9) <= lev
+            lab, n = label(mask)
+            comp = (lab == lab[ci, cj]) if lab[ci, cj] > 0 else (lab == 1 + int(np.argmax(np.bincount(lab.ravel())[1:])))
+            comp = binary_fill_holes(comp)
+            sm = gaussian_filter(comp.astype(float), 1.0)
+            gen = contourpy.contour_generator(grid.xs, grid.ys, sm, fill_type=contourpy.FillType.OuterOffset)
+            pl, ol = gen.filled(0.5, 2.0)
+            ps = []
+            for p, o in zip(pl, ol):
+                rings = [p[o[i]:o[i + 1]] for i in range(len(o) - 1)]
+                if len(rings[0]) >= 4:
+                    ps.append(Polygon(rings[0], [r for r in rings[1:] if len(r) >= 4]))
+            geom = unary_union(ps).simplify(simplify_m)
+            if prev is not None:
+                geom = unary_union([geom, prev])
+            prev = geom
+            out.append(geom)
+        return out
+
+    sc = {"база": None, "срезка (+33 тыс.)": R["node_delta"]["s1"][0], "полный проект (+180 тыс.)": R["node_delta"]["s2"][0]}
+    geoms = {k: nested(field(v)) for k, v in sc.items()}
+    rows = []
+    for k, gl in geoms.items():
+        for lev, ge in zip(levels, gl):
+            rows.append(dict(scenario=k, level_min=lev, area_km2=ge.area / 1e6, geometry=ge))
+    gdf = gpd.GeoDataFrame(rows, crs=32637)
+    tab = gdf.pivot(index="level_min", columns="scenario", values="area_km2")[list(sc)].round(1)
+    tab["срезка, Δ %"] = ((tab["срезка (+33 тыс.)"] / tab["база"] - 1) * 100).round(1)
+    tab["полный, Δ %"] = ((tab["полный проект (+180 тыс.)"] / tab["база"] - 1) * 100).round(1)
+    tab.to_csv(str(out_png).rsplit(".", 1)[0] + "_areas.csv")
+    gdf.to_crs(4326).to_file(out_gpkg, layer="isochrones_0800", driver="GPKG")
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 8), constrained_layout=True)
+    cols = {10: "#41ab5d", 20: "#2171b5", 30: "#d94801", 45: "#6a51a3"}
+    for ax, name in zip(axes, ("срезка (+33 тыс.)", "полный проект (+180 тыс.)")):
+        for lev, g0, g1 in zip(levels, geoms["база"], geoms[name]):
+            for geom, ls, lw, al in ((g0, "-", 1.4, 1.0), (g1, "--", 2.0, 1.0)):
+                for pg in getattr(geom, "geoms", [geom]):
+                    x, y = pg.exterior.xy
+                    ax.plot(np.array(x) / 1000, np.array(y) / 1000, ls, color=cols[lev], lw=lw, alpha=al)
+        ax.plot(cx / 1000, cy / 1000, "s", color="red", ms=7)
+        ax.set_xlim(cx / 1000 - 24, cx / 1000 + 24); ax.set_ylim(cy / 1000 - 24, cy / 1000 + 24)
+        ax.set_aspect("equal"); ax.set_title(f"{name}: изохроны 08:00 в центр\nсплошная — база, пунктир — проект (сеть без изменений)")
+        from matplotlib.lines import Line2D
+        ax.legend(handles=[Line2D([0], [0], color=cols[lv], lw=2, label=f"{lv} мин") for lv in levels], loc="lower left")
+    fig.suptitle("Ярославль: изменение изохрон утром в проекте (население и МПТ по районам)", fontsize=11)
+    fig.savefig(out_png, dpi=140)
+    plt.close(fig)
+    return tab
