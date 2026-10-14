@@ -89,9 +89,18 @@ class Slot:
         return dist, T, G
 
 
+PW = 1.0  # степень весов подгонки: строки умножаются на Y^-PW (0 — МНК в минутах, 1 — относительная ошибка)
+
+
+def row_scale(Y):
+    s = Y ** (-PW)
+    return s / s.mean()
+
+
 def ols(T, Y):
     X = np.c_[T, np.ones_like(T)]
-    (a, b), *_ = np.linalg.lstsq(X, Y, rcond=None)
+    sc = row_scale(Y)
+    (a, b), *_ = np.linalg.lstsq(X * sc[:, None], Y * sc, rcond=None)
     return a, b
 
 
@@ -107,8 +116,9 @@ def fit(slot, tr, Y, lam=None, local=None, D=None):
             r = Y[tr] - (a * T[tr] + b)
             X = G[tr]
             act = X.sum(0) > 0
-            Xa = X[:, act]
-            d = np.linalg.solve(Xa.T @ Xa + lam * np.eye(act.sum()), Xa.T @ (r / a))
+            sc = row_scale(Y[tr])
+            Xa = X[:, act] * sc[:, None]
+            d = np.linalg.solve(Xa.T @ Xa + lam * np.eye(act.sum()), Xa.T @ (r / a * sc))
             dd = np.zeros(net.n_groups)
             dd[act] = np.clip(d, -DELTA_STEP, DELTA_STEP)
             m = np.clip(m * (1 + dd), M_LO, M_HI)
@@ -134,7 +144,9 @@ def predict(model, slot):
 
 def metrics(y, p):
     e = p - y
-    return dict(rmse=float(np.sqrt((e ** 2).mean())), mae=float(np.abs(e).mean()), bias=float(e.mean()))
+    sh = y <= 12
+    return dict(rmse=float(np.sqrt((e ** 2).mean())), mae=float(np.abs(e).mean()), bias=float(e.mean()),
+                rel=float(np.sqrt(((e / y) ** 2).mean())), short_bias=float(e[sh].mean()) if sh.any() else float("nan"))
 
 
 def loo(slot, tr, Y, **kw):
