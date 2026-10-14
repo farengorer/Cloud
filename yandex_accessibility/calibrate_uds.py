@@ -463,3 +463,76 @@ def draw_isochrones_v3(net, models, points_csv, out_png, levels=(10, 20, 30, 45)
     fig.savefig(out_png, dpi=140)
     fig.savefig(str(out_png).rsplit(".", 1)[0] + ".pdf")
     plt.close(fig)
+
+
+def export_polygons(net, models, points_csv, out_gpkg, levels=(10, 20, 30, 45), cover_km=5.0, simplify_m=60.0):
+    """Полигональный слой изохрон (EPSG:4326, GeoPackage).
+    Слой `isochrones`: вложенные изохроны ≤10/20/30/45 мин — компонента с центром, внутренние кольца заполнены, контур
+    упрощён (как в методе). Слой `bands`: кольцевые зоны 0–10, 10–20, 20–30, 30–45, 45+ (все фрагменты в зоне замеров)."""
+    import contourpy
+    import geopandas as gpd
+    from scipy.ndimage import binary_fill_holes, gaussian_filter, label
+    from scipy.spatial import cKDTree
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    from .field import Grid
+    from .uds_iso import surface
+
+    pts = pd.read_csv(points_csv)
+    cx, cy = net.nodes[net.src]
+    grid = Grid(cx, cy)
+    X, Y = grid.centers()
+    q = np.c_[X.ravel(), Y.ravel()]
+    d_pt = cKDTree(np.c_[pts.x_utm, pts.y_utm]).query(q)[0].reshape(X.shape) / 1000
+    d_road = cKDTree(np.array(net.nodes, float)).query(q)[0].reshape(X.shape) / 1000
+    uncovered = (d_pt > cover_km) | (d_road > 1.5)
+    ci, cj = int((cy - grid.y0) // grid.cell), int((cx - grid.x0) // grid.cell)
+
+    def polys_from_filled(f, lo, hi):
+        gen = contourpy.contour_generator(grid.xs, grid.ys, np.ma.masked_invalid(f), fill_type=contourpy.FillType.OuterOffset)
+        pts_l, offs_l = gen.filled(lo, hi)
+        out = []
+        for p, o in zip(pts_l, offs_l):
+            rings = [p[o[i]:o[i + 1]] for i in range(len(o) - 1)]
+            if len(rings[0]) >= 4:
+                out.append(Polygon(rings[0], [r for r in rings[1:] if len(r) >= 4]))
+        return out
+
+    iso_rows, band_rows = [], []
+    names = [f"0–{levels[0]}"] + [f"{a}–{b}" for a, b in zip(levels[:-1], levels[1:])] + [f"{levels[-1]}+"]
+    bounds = [-1.0, *levels, 1e4]
+    for name, (slot, model, chosen) in models.items():
+        a, b, m, l, _ = model
+        dist, _, _ = slot.run(m[net.group] * l)
+        f = a * surface(grid, None, {net.nodes[i]: dist[i] for i in range(net.n) if np.isfinite(dist[i])}) + b
+        f = np.where(uncovered, np.nan, f)
+        way = "to_center" if slot.to_center else "from_center"
+        prev = None
+        for lev in levels:
+            mask = np.nan_to_num(f, nan=1e9) <= lev
+            lab, _n = label(mask)
+            if lab[ci, cj] > 0:
+                comp = lab == lab[ci, cj]
+            elif _n > 0:  # центр сам не в зоне (утром 10 мин — со сдвигом от центра): берём крупнейшую компоненту
+                comp = lab == (1 + int(np.argmax(np.bincount(lab.ravel())[1:])))
+            else:
+                comp = np.zeros_like(mask)
+            comp = binary_fill_holes(comp)
+            sm = gaussian_filter(comp.astype(float), 1.0)
+            ps = polys_from_filled(np.where(np.ones_like(sm, bool), sm, np.nan), 0.5, 2.0)
+            geom = unary_union(ps).simplify(simplify_m)
+            if prev is not None:
+                geom = unary_union([geom, prev])
+            prev = geom
+            iso_rows.append(dict(slot=name, direction=way, level_min=lev, kind="isochrone", area_km2=geom.area / 1e6, geometry=geom))
+        for nm, lo, hi in zip(names, bounds[:-1], bounds[1:]):
+            ps = polys_from_filled(f, lo, hi)
+            if not ps:
+                continue
+            geom = unary_union(ps).simplify(simplify_m)
+            band_rows.append(dict(slot=name, direction=way, band=nm, upper_min=hi if hi < 1e3 else None, area_km2=geom.area / 1e6, geometry=geom))
+    iso = gpd.GeoDataFrame(iso_rows, crs=32637).to_crs(4326)
+    bands = gpd.GeoDataFrame(band_rows, crs=32637).to_crs(4326)
+    iso.to_file(out_gpkg, layer="isochrones", driver="GPKG")
+    bands.to_file(out_gpkg, layer="bands", driver="GPKG")
+    return iso, bands
