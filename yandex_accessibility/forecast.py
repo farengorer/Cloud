@@ -256,4 +256,83 @@ def iso_change(net, models, R, points_csv, out_png, out_gpkg, levels=(10, 20, 30
     fig.suptitle("Ярославль: изменение изохрон утром в проекте (население и МПТ по районам)", fontsize=11)
     fig.savefig(out_png, dpi=140)
     plt.close(fig)
+    R["geoms"] = geoms
     return tab
+
+
+def compare(R, models, out_dir, levels=(10, 20, 30, 45)):
+    """Сопоставление «существующее положение — проект»: население по зонам времени до центра (08:00),
+    среднее время до центра (взвешено населением) по районам, карта и таблицы. Только город Ярославль."""
+    from pathlib import Path
+    import geopandas as gpd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from shapely.ops import unary_union
+
+    out = Path(out_dir)
+    net, g, geoms = R["net"], R["g"], R["geoms"]
+    slot, (a, b, m, l, _), chosen = models["08:00"]
+    dist, _, _ = slot.run(m[net.group] * l)
+    y0 = a * dist + b
+    city = g["МО"] == "Ярославль"
+    gz = g[city].copy()
+    nodes = gz["node"].to_numpy()
+    d_s1, d_s2 = R["node_delta"]["s1"][0][nodes], R["node_delta"]["s2"][0][nodes]
+    scen = {
+        "существующее положение": ("Население_сущ", None, geoms["база"], y0[nodes]),
+        "срезка (+33 тыс.)": ("Население_итог_срезка", "s1", geoms["срезка (+33 тыс.)"], y0[nodes] + d_s1),
+        "полный проект (+180 тыс.)": ("Население_итог", "s2", geoms["полный проект (+180 тыс.)"], y0[nodes] + d_s2),
+    }
+    names = [f"до {levels[0]} мин"] + [f"{x}–{y} мин" for x, y in zip(levels[:-1], levels[1:])] + [f"дольше {levels[-1]} мин / вне зоны"]
+    rows, dist_rows = [], []
+    bands_by = {}
+    for sname, (pc, tag, gl, ymin) in scen.items():
+        pop = gz[pc].fillna(0).to_numpy(float)
+        polys = [gl[0]] + [gl[i].difference(gl[i - 1]) for i in range(1, len(gl))]
+        bands_by[sname] = polys
+        shares = []
+        for pg in polys:
+            frac = gz.geometry.intersection(pg).area.to_numpy() / gz.geometry.area.to_numpy()
+            shares.append(float((pop * frac).sum()))
+        shares.append(float(pop.sum()) - sum(shares))
+        for nm, v in zip(names, shares):
+            rows.append(dict(сценарий=sname, зона=nm, население=round(v), доля_пct=round(100 * v / pop.sum(), 1)))
+        gz[f"y_{pc}"] = ymin
+        gz[f"w_{pc}"] = pop
+        dist_rows.append(dict(сценарий=sname, население=round(pop.sum()), среднее_время_до_центра_мин=round(float((ymin * pop).sum() / pop.sum()), 1)))
+    pd.DataFrame(rows).to_csv(out / "compare_population_by_band.csv", index=False)
+    summ = pd.DataFrame(dist_rows)
+    summ.to_csv(out / "compare_summary.csv", index=False)
+    by = []
+    for adm, d in gz.groupby("Адм_район"):
+        r = dict(район=adm)
+        for sname, (pc, tag, gl, ymin) in scen.items():
+            w, y = d[f"w_{pc}"].to_numpy(), d[f"y_{pc}"].to_numpy()
+            r[f"насел. {sname}"] = round(w.sum())
+            r[f"время {sname}"] = round(float((w * y).sum() / max(w.sum(), 1)), 1)
+        by.append(r)
+    pd.DataFrame(by).to_csv(out / "compare_by_district.csv", index=False)
+
+    colors = ["#ffffb2", "#a1dab4", "#41b6c4", "#2c7fb8"]
+    fig, axes = plt.subplots(1, 3, figsize=(21, 7.5), constrained_layout=True, gridspec_kw=dict(width_ratios=[1, 1, 0.9]))
+    for ax, sname in zip(axes[:2], ("существующее положение", "срезка (+33 тыс.)")):
+        for pg, c in zip(bands_by[sname], colors):
+            gpd.GeoSeries([pg], crs=32637).plot(ax=ax, color=c, edgecolor="k", linewidth=0.4)
+        gpd.GeoSeries(gz.geometry.unary_union.boundary, crs=32637).plot(ax=ax, color="#999999", linewidth=0.2)
+        cx, cy = net.nodes[net.src]
+        ax.plot(cx, cy, "s", color="red", ms=7)
+        ax.set_xlim(cx - 24000, cx + 24000); ax.set_ylim(cy - 24000, cy + 24000)
+        ax.set_aspect("equal"); ax.set_title(f"{sname}: зоны времени до центра, 08:00", fontsize=10)
+    ax = axes[2]
+    w = 0.27
+    xs = np.arange(len(names))
+    for k, (sname, c) in enumerate(zip(scen, ("#4c78a8", "#f58518", "#e45756"))):
+        vals = [r["население"] for r in rows if r["сценарий"] == sname]
+        ax.bar(xs + (k - 1) * w, np.array(vals) / 1000, w, label=f"{sname} ({sum(vals) / 1000:.0f} тыс.)", color=c)
+    ax.set_xticks(xs); ax.set_xticklabels(names, rotation=20, ha="right", fontsize=8)
+    ax.set_ylabel("население, тыс. чел."); ax.legend(fontsize=8); ax.set_title("Население по времени до центра утром", fontsize=10)
+    fig.suptitle("Ярославль: сопоставление существующего положения и проекта (08:00 в центр, сеть без изменений)", fontsize=11)
+    fig.savefig(out / "compare_map_population.png", dpi=140)
+    plt.close(fig)
+    return summ, pd.DataFrame(rows), pd.DataFrame(by)
