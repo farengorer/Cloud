@@ -240,6 +240,12 @@ def edge_map(net, models, out_dir):
     for name, (slot, (a, b, m, l, _), chosen) in models.items():
         t_h = a * slot.base * m[net.group] * l / 60
         eff[name] = km / t_h  # км/ч
+    vmax = np.array([{1: 30, 3: 60, 4: 70, 5: 80, 6: 90}[r] for r in net.rank], float)  # предел класса, км/ч
+    n_raw = {k: int((v > vmax).sum()) for k, v in eff.items()}
+    eff = {k: np.minimum(v, vmax) for k, v in eff.items()}
+    n_inv = int((eff["08:00"] > eff["11:00"]).sum())
+    eff["08:00"] = np.minimum(eff["08:00"], eff["11:00"])  # пик не быстрее свободного потока
+    print("рёбер выше предела класса:", n_raw, "; утро быстрее дня:", n_inv, "из", len(net.u))
     sp08, sp11, sp18 = eff["08:00"], eff["11:00"], eff["18:00"]
     ratio = sp11 / sp08  # во сколько раз утром в центр медленнее, чем днём
     xy = np.array(net.nodes, float)
@@ -276,7 +282,7 @@ def edge_map(net, models, out_dir):
         ax.set_xlim(cx - 22, cx + 22); ax.set_ylim(cy - 22, cy + 22)
         ax.set_aspect("equal"); ax.set_title(title); ax.tick_params(labelsize=8)
         fig.colorbar(lc, ax=ax, shrink=0.6)
-    fig.suptitle("Ярославль: эффективная скорость УДС по калибровке Яндекса (оценка по классу дороги, зоне и району)", fontsize=12)
+    fig.suptitle("Ярославль: эффективная скорость УДС по калибровке Яндекса (оценка по классу, зоне и району; ограничена пределом класса, 140 точек)", fontsize=12)
     fig.savefig(f"{out_dir}/edges_speed_uds.png", dpi=150)
     plt.close(fig)
     return gdf

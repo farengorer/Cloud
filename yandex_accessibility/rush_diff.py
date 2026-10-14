@@ -145,3 +145,66 @@ def run_network(path, points_csv, times_csv, out_png, out_csv, bandwidths=(2.0, 
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
     return res
+
+
+def edge_ratio_map(path, points_csv, times_csv, out_png, out_gpkg, h_km=1.0, max_gap_km=3.0):
+    """Раскраска рёбер УДС по интерполированному отношению «утро/день» (по замерам, ядро по сети).
+    Никаких допущений о скоростях: значение ребра — сглаженный замер ближайших по сети точек.
+    Рёбра дальше max_gap_km по сети от ближайшей точки не закрашиваются."""
+    import geopandas as gpd
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import LineCollection
+    from shapely.geometry import LineString
+    from .calibrate_uds import Net
+
+    net = Net(path)
+    p = pd.read_csv(points_csv).set_index("point_id")
+    tt = pd.read_csv(times_csv)
+    tt = tt[tt.status == "ok"]
+    t = tt.pivot(index="point_id", columns="slot", values="minutes").reindex(p.index)
+    ok = (t["08:00"].notna() & t["11:00"].notna()).to_numpy()
+    p, t = p[ok], t[ok]
+    d = (t["08:00"] - t["11:00"]).to_numpy(float)
+    r = (t["08:00"] / t["11:00"]).to_numpy(float)
+    nodes = np.array([net.idx[(int(x), int(y))] for x, y in zip(p.x_utm, p.y_utm)])
+    D = net.undirected_dist(nodes) / 1000  # точки × узлы, км
+    W = np.exp(-0.5 * (D / h_km) ** 2) + 1e-12
+    fr = (W * r[:, None]).sum(0) / W.sum(0)
+    fd = (W * d[:, None]).sum(0) / W.sum(0)
+    gap = D.min(0)
+    u, v = net.u, net.v
+    key = np.minimum(u, v) * net.n + np.maximum(u, v)
+    df = pd.DataFrame(dict(key=key, u=u, v=v, rank=net.rank, ratio=(fr[u] + fr[v]) / 2, diff_min=(fd[u] + fd[v]) / 2,
+                           gap_km=np.maximum(gap[u], gap[v])))
+    e = df.groupby("key").first().reset_index(drop=True)
+    e.loc[e.gap_km > max_gap_km, ["ratio", "diff_min"]] = np.nan
+    xy = np.array(net.nodes, float)
+    gdf = gpd.GeoDataFrame(e.drop(columns=["u", "v"]), geometry=[LineString([xy[a], xy[b]]) for a, b in zip(e.u, e.v)], crs=32637).to_crs(4326)
+    gdf.to_file(out_gpkg, layer="edges", driver="GPKG")
+
+    segs = np.array([[xy[a] / 1000, xy[b] / 1000] for a, b in zip(e.u, e.v)])
+    cx, cy = xy[net.src] / 1000
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8.5), constrained_layout=True)
+    for ax, col, title, lo, hi in ((axes[0], "diff_min", "потеря утром, минуты (08:00 − 11:00)", 1, 16),
+                                   (axes[1], "ratio", "утро / день, × (во сколько раз дольше утром)", 1.1, 1.9)):
+        vals = e[col].to_numpy()
+        has = ~np.isnan(vals)
+        major = e["rank"].to_numpy() >= 3
+        ax.add_collection(LineCollection(segs[~has], colors="#d9d9d9", linewidths=0.3))
+        for sel, lw, al in ((has & ~major, 0.5, 0.45), (has & major, 1.6, 1.0)):
+            idx = np.flatnonzero(sel)
+            idx = idx[np.argsort(vals[idx])]  # красное сверху
+            lc = LineCollection(segs[idx], array=vals[idx], cmap="YlOrRd", linewidths=lw, alpha=al)
+            lc.set_clim(lo, hi)
+            ax.add_collection(lc)
+        ax.scatter(p.x_utm / 1000, p.y_utm / 1000, s=6, c="k", zorder=5)
+        ax.plot(cx, cy, "s", color="black", ms=7, zorder=6)
+        ax.set_xlim(cx - 21, cx + 21); ax.set_ylim(cy - 21, cy + 21)
+        ax.set_aspect("equal"); ax.set_title(title)
+        fig.colorbar(lc, ax=ax, shrink=0.7)
+    fig.suptitle(f"Ярославль: где утром в центр теряем больше всего — рёбра УДС по замерам Яндекса ({len(p)} точек, ядро {h_km} км по сети; серое — дальше {max_gap_km:g} км от замеров)", fontsize=11)
+    fig.savefig(out_png, dpi=150)
+    plt.close(fig)
+    return e
