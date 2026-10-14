@@ -364,3 +364,47 @@ def edge_minutes_map(net, models, points_csv, out_png, out_gpkg, max_gap_km=3.0)
     fig.savefig(out_png, dpi=140)
     plt.close(fig)
     return e
+
+
+def draw_isochrones_v2(net, models, points_csv, out_png, cover_km=5.0):
+    """Изохроны 15/30/45/60 по калиброванной модели. Серым закрыта зона дальше cover_km от замеров,
+    60 мин (больше самого долгого замера, 47) — пунктиром, как экстраполяция."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from scipy.spatial import cKDTree
+    from . import isochrones
+    from .field import Grid
+    from .uds_iso import surface
+
+    pts = pd.read_csv(points_csv)
+    cx, cy = net.nodes[net.src]
+    grid = Grid(cx, cy)
+    X, Y = grid.centers()
+    d_pt = cKDTree(np.c_[pts.x_utm, pts.y_utm]).query(np.c_[X.ravel(), Y.ravel()])[0].reshape(X.shape) / 1000
+    uncovered = d_pt > cover_km
+    fig, axes = plt.subplots(1, 3, figsize=(21, 7.5), constrained_layout=True)
+    ext = [grid.xs[0] / 1000, grid.xs[-1] / 1000, grid.ys[0] / 1000, grid.ys[-1] / 1000]
+    shades = {15: "#9ecae1", 30: "#4292c6", 45: "#08519c", 60: "#08306b"}
+    for ax, (name, (slot, model, chosen)) in zip(axes, models.items()):
+        a, b, m, l, _ = model
+        dist, _, _ = slot.run(m[net.group] * l)
+        f = a * surface(grid, None, {net.nodes[i]: dist[i] for i in range(net.n) if np.isfinite(dist[i])}) + b
+        ax.imshow(np.where(uncovered, 1.0, np.nan), extent=ext, origin="lower", cmap="Greys", vmin=0, vmax=3, alpha=0.35, zorder=0)
+        for level, color in shades.items():
+            for ln in isochrones.isochrone_lines(grid, f, level):
+                ax.plot(ln[:, 0] / 1000, ln[:, 1] / 1000, color=color, lw=1.8, ls="--" if level == 60 else "-", zorder=2)
+            lines = isochrones.isochrone_lines(grid, f, level)
+            if lines:
+                top = max((ln[np.argmax(ln[:, 1])] for ln in lines), key=lambda q: q[1])
+                ax.annotate(f"{level} мин", (top[0] / 1000, top[1] / 1000), xytext=(0, 4), textcoords="offset points",
+                            ha="center", fontsize=9, color=color)
+        ax.plot(pts.x_utm / 1000, pts.y_utm / 1000, ".", color="k", ms=3, zorder=3)
+        ax.plot(cx / 1000, cy / 1000, "s", color="red", ms=7, zorder=4)
+        way = "в центр" if slot.to_center else "из центра"
+        ax.set_xlim(cx / 1000 - 28, cx / 1000 + 28); ax.set_ylim(cy / 1000 - 28, cy / 1000 + 28)
+        ax.set_aspect("equal"); ax.set_title(f"{name} ({way})")
+    fig.suptitle("Ярославль: изохроны на автомобиле 15/30/45/60 мин по Яндекс Картам, 20.10.2026 (калиброванная модель УДС; серое — вне зоны замеров, 60 мин — экстраполяция)", fontsize=11)
+    fig.savefig(out_png, dpi=140)
+    fig.savefig(str(out_png).rsplit(".", 1)[0] + ".pdf")
+    plt.close(fig)
