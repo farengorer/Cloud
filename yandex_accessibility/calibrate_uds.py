@@ -408,3 +408,46 @@ def draw_isochrones_v2(net, models, points_csv, out_png, cover_km=5.0):
     fig.savefig(out_png, dpi=140)
     fig.savefig(str(out_png).rsplit(".", 1)[0] + ".pdf")
     plt.close(fig)
+
+
+def draw_isochrones_v3(net, models, points_csv, out_png, levels=(10, 20, 30, 45), cover_km=5.0):
+    """Заливка зон доступности: 0–10, 10–20, 20–30, 30–45 мин и «45+» (дальше последнего уровня).
+    Серым закрыта зона дальше cover_km от замеров."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+    from scipy.spatial import cKDTree
+    from .field import Grid
+    from .uds_iso import surface
+
+    pts = pd.read_csv(points_csv)
+    cx, cy = net.nodes[net.src]
+    grid = Grid(cx, cy)
+    X, Y = grid.centers()
+    d_pt = cKDTree(np.c_[pts.x_utm, pts.y_utm]).query(np.c_[X.ravel(), Y.ravel()])[0].reshape(X.shape) / 1000
+    d_road = cKDTree(np.array(net.nodes, float)).query(np.c_[X.ravel(), Y.ravel()])[0].reshape(X.shape) / 1000
+    uncovered = (d_pt > cover_km) | (d_road > 1.5)  # нет замеров рядом или нет дорог слоя
+    edges = [-1.0, *levels, 1e4]
+    colors = ["#ffffb2", "#a1dab4", "#41b6c4", "#2c7fb8", "#253494"][: len(edges) - 1]
+    names = [f"до {levels[0]} мин"] + [f"{a}–{b} мин" for a, b in zip(levels[:-1], levels[1:])] + [f"{levels[-1]}+ мин"]
+    fig, axes = plt.subplots(1, 3, figsize=(21, 8), constrained_layout=True)
+    ext = [grid.xs[0] / 1000, grid.xs[-1] / 1000, grid.ys[0] / 1000, grid.ys[-1] / 1000]
+    for ax, (name, (slot, model, chosen)) in zip(axes, models.items()):
+        a, b, m, l, _ = model
+        dist, _, _ = slot.run(m[net.group] * l)
+        f = a * surface(grid, None, {net.nodes[i]: dist[i] for i in range(net.n) if np.isfinite(dist[i])}) + b
+        f = np.where(uncovered, np.nan, f)
+        ax.contourf(grid.xs / 1000, grid.ys / 1000, np.ma.masked_invalid(f), levels=edges, colors=colors, zorder=1)
+        ax.contour(grid.xs / 1000, grid.ys / 1000, np.ma.masked_invalid(f), levels=list(levels), colors="k", linewidths=0.6, zorder=2)
+        ax.imshow(np.where(uncovered, 1.0, np.nan), extent=ext, origin="lower", cmap="Greys", vmin=0, vmax=3, alpha=0.3, zorder=0)
+        ax.plot(pts.x_utm / 1000, pts.y_utm / 1000, ".", color="k", ms=2.5, zorder=3)
+        ax.plot(cx / 1000, cy / 1000, "s", color="red", ms=7, zorder=4)
+        way = "в центр" if slot.to_center else "из центра"
+        ax.set_xlim(cx / 1000 - 26, cx / 1000 + 26); ax.set_ylim(cy / 1000 - 26, cy / 1000 + 26)
+        ax.set_aspect("equal"); ax.set_title(f"{name} ({way})")
+        ax.legend(handles=[Patch(color=c, label=n) for c, n in zip(colors, names)], loc="lower left", fontsize=9, title="время в пути")
+    fig.suptitle("Ярославль: зоны доступности на автомобиле по Яндекс Картам, 20.10.2026 (калиброванная модель УДС; серое — вне зоны замеров или без дорог в слое)", fontsize=11)
+    fig.savefig(out_png, dpi=140)
+    fig.savefig(str(out_png).rsplit(".", 1)[0] + ".pdf")
+    plt.close(fig)
