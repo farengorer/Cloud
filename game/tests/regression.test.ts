@@ -168,7 +168,7 @@ describe("интерфейс", () => {
     await page.fill("#airportCodeInput", "12");
     await page.click("[data-airport-save]");
     expect(await page.locator("#airportIdentity [role=status]").textContent()).toContain(
-      "три латинских буквы",
+      "трёх латинских букв",
     );
     expect(pageErrors).toEqual([]);
   });
