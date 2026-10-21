@@ -264,8 +264,7 @@ export function makeCity(o) {
   S.cities.push(c);
   c.districtId = districtAt(c.x, c.y);
   const territory = districtRecordAt(c.x, c.y);
-  if (territory && !territory.centerCity) {
-    territory.centerCity = c.i;
+  if (territory) {
     const reg = S.regions[territory.regionId];
     if (reg && reg.center == null) reg.center = c.i;
   }

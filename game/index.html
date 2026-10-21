@@ -56,7 +56,7 @@
       <span class="sep" data-for="region"></span>
       <button type="button" class="tool" data-tool="np" data-for="region" aria-pressed="false" title="Национальный парк, 2 млрд"><svg viewBox="0 0 24 24"><path d="M12 3l-6 8h3.5L5 17h14l-4.5-6H18zM12 17v4"/></svg>Нацпарк</button>
       <button type="button" class="tool" data-tool="zap" data-for="region" aria-pressed="false" title="Заповедник, 1 млрд"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.2-3 7.2-7 9-4-1.8-7-4.8-7-9V6z"/><path d="M9 12.5l2 2 4-4.5"/></svg>Заповедник</button>
-      <button type="button" class="tool" data-tool="claim" data-for="region" aria-pressed="false" title="Присоединить свободный район"><svg viewBox="0 0 24 24"><path d="M4 5h7v6H4zM13 5h7v6h-7zM4 13h7v6H4zM13 13h7v6h-7z"/><path d="M15 8h3M16.5 6.5v3"/></svg>Район</button>
+      <button type="button" class="tool" data-tool="claim" data-for="region" aria-pressed="false" title="Присоединить свободный регион"><svg viewBox="0 0 24 24"><path d="M4 5h7v6H4zM13 5h7v6h-7zM4 13h7v6H4zM13 13h7v6h-7z"/><path d="M15 8h3M16.5 6.5v3"/></svg>Район</button>
       <span class="sep"></span>
       <button type="button" class="tool" data-tool="biz" data-for="city" aria-pressed="false" title="Деловой центр, 2 млрд за квартал"><svg viewBox="0 0 24 24"><path d="M5 21V9h6v12M11 21V3h8v18M3 21h18M14 7h2M14 11h2M14 15h2M7.5 13h1M7.5 16.5h1"/></svg>Деловой центр</button>
       <button type="button" class="tool" data-tool="metro" data-for="city" aria-pressed="false" title="Новая линия метро"><svg viewBox="0 0 24 24"><path d="M4 19V6l8 9 8-9v13"/></svg>Метро</button>
@@ -76,7 +76,7 @@
           <button type="button" data-layer="acc" aria-pressed="false">Доступность</button>
           <button type="button" data-layer="airlinks" aria-pressed="false" title="Диспетчерская карта авиасообщения">Диспетчер</button>
           <button type="button" data-layer="cargo" aria-pressed="false" title="Грузовые линии между портами">Порты</button>
-          <button type="button" data-layer="territory" aria-pressed="false" title="Районы и регионы государства">Территория</button>
+          <button type="button" data-layer="territory" aria-pressed="false" title="Регионы государства">Территория</button>
   <button type="button" data-layer="zones" aria-pressed="false">Зоны влияния</button>
           <button type="button" data-layer="nature" aria-pressed="false">Природа</button>
         </div>
@@ -141,14 +141,12 @@
           </table>
         </div>
         <details class="fold" open><summary>Территория государства</summary>
-          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Выбрать район на карте</button>
-          <span class="note">В режиме «Территория» нажмите район: свободный можно присоединить, включённый — сразу перевести в другой регион.</span></div>
-          <div id="territorySummary" class="note"></div>
-          <div class="found"><label class="note">Найти район: <input id="territorySearch" type="search" placeholder="номер или город" aria-label="Найти район или город"></label><button type="button" id="territoryPrev">Назад</button><button type="button" id="territoryNext">Дальше</button><span id="territoryPageLabel" class="note"></span></div>
-          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Район</th><th class="l">Регион</th><th class="l">Районный центр</th><th>Статус</th><th>Содержание/год</th></tr></thead><tbody id="territoryBody"></tbody></table></div></details>
+          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Выбрать регион на карте</button>
+          <span class="note">В режиме «Территория» нажмите регион: свободный можно присоединить к государству, свой откроет сведения о нём.</span></div>
+          <div id="territorySummary" class="note"></div></details>
         <details class="fold" open><summary>Регионы страны</summary>
-          <p class="note">Регион объединяет районы. Чтобы перенести район, нажмите его на карте и выберите регион; регион из одного района с городом считается городом-регионом.</p>
-          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Регион</th><th class="l">Центр региона</th><th>Районов</th><th>Городов</th><th>Жители</th><th>Площадь, км²</th><th></th></tr></thead><tbody id="dbody"></tbody></table></div></details>
+          <p class="note">Каждый присоединённый регион содержится за счёт бюджета. Центр региона можно сменить, название меняется прямо в таблице.</p>
+          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Регион</th><th class="l">Центр региона</th><th>Содержание</th><th>Городов</th><th>Жители</th><th>Площадь, км²</th><th></th></tr></thead><tbody id="dbody"></tbody></table></div></details>
         <details class="fold" open id="zoneBox"><summary>Зоны влияния центров</summary>
           <p class="note">Складываются сами по главным потокам. Город подчиняется тому соседу, к которому у него самая сильная связь, если сосед крупнее или это центр его области. На карте их показывает слой «Зоны влияния».</p>
           <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Центр</th><th>Городов</th><th>Горожан</th><th>Селян</th><th class="l">Подчинённые</th></tr></thead><tbody id="zbody"></tbody></table></div></details>

@@ -10,6 +10,8 @@ import {
   districtRecordAt,
   initialDistrictIds,
   makeAdminDistrictMap,
+  REGION_MAP_VERSION,
+  startingCellCount,
   startingTownSite,
 } from "./districts";
 import { roadClass } from "./draw";
@@ -790,7 +792,9 @@ export function init(seed, opts?) {
     tg: opts.tg || 2,
     planet: !!opts.planet,
     worldVersion: opts.worldVersion === 1 ? 1 : 2,
-    adminMapVersion: Number.isFinite(+opts.adminMapVersion) ? +opts.adminMapVersion : 3,
+    adminMapVersion: Number.isFinite(+opts.adminMapVersion)
+      ? +opts.adminMapVersion
+      : REGION_MAP_VERSION,
     cultureId,
     continentCount: opts.continentCount || 5,
     continentNameStyle: opts.continentNameStyle || "geographic",
@@ -880,7 +884,7 @@ export function init(seed, opts?) {
   (c as any).govc = 1;
   (c as any).pw = { tec: 1 };
   if (S.planet) {
-    const ids = initialDistrictIds(cx, cy, 5),
+    const ids = initialDistrictIds(cx, cy, startingCellCount()),
       reg = {
         name: "Регион 1",
         color: DCOL[0],
@@ -890,17 +894,13 @@ export function init(seed, opts?) {
         districts: [],
       };
     S.regions.push(reg);
-    ids.forEach((id) => claimDistrict(id, 0, 200000, false));
+    ids.forEach((id) => claimDistrict(id, 0, 1e6 / ids.length, false));
     (c as any).districtId = districtAt(cx, cy);
-    const cd = S.districtById.get((c as any).districtId);
-    if (cd) cd.centerCity = c.i;
     const town = startingTownSite(cx, cy, ids);
     if (town) {
       const nm = S.names.pop() || "Новый город";
       const tc = makeCity({ name: nm, x: town.x, y: town.y, pop: 10000 });
       (tc as any).init = 0.72;
-      const td = districtRecordAt(town.x, town.y);
-      if (td && !td.centerCity) td.centerCity = tc.i;
     }
     S.ruralPool = 1e6;
     makeRuralSites(S.seed, S.ruralPool);
@@ -920,7 +920,7 @@ export function init(seed, opts?) {
       (S.planet
         ? " и город «" +
           (S.cities[1] ? S.cities[1].name : "Новый город") +
-          "» с 10 тыс. жителей. В государство включены пять районов первого региона."
+          "» с 10 тыс. жителей. В государство включён первый регион."
         : ". Государство основано вокруг столицы"),
   });
   if (worldText()) S.log.unshift({ y: S.year, t: "Карта: " + worldText() });

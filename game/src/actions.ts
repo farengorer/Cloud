@@ -266,7 +266,7 @@ export function canFound(x, y) {
     return "слишком близко к границе";
   if (S.T.sea && seaD(x, y) < 1) return "в море строить нельзя";
   if (S.planet && countryAt(x, y) !== 0) return "эта территория относится к другому государству";
-  if (S.planet && !districtRecordAt(x, y)) return "сначала присоедините этот район к государству";
+  if (S.planet && !districtRecordAt(x, y)) return "сначала присоедините этот регион к государству";
   if (S.planet && isIceAt(x, y)) return "в полярных льдах города не строятся";
   if (S.T.ridge && mtVal(x, y) > 0.55) return "слишком высоко в горах";
   if (inPark(x, y)) return "здесь охраняемая природная территория";

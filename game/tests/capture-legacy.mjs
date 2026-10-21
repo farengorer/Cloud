@@ -1,4 +1,5 @@
-// Снимает эталонные отпечатки с исходной версии (legacy/index.html).
+// Снимает эталонные отпечатки с исходной версии (legacy/index.html) для сценариев обычной партии.
+// Планета в игре изменилась намеренно, её эталон снимает capture-planet.mjs.
 // Запуск: node tests/capture-legacy.mjs > tests/golden.json
 import { chromium } from "playwright-core";
 import fs from "node:fs";
@@ -24,7 +25,7 @@ await page.addInitScript(fs.readFileSync(path.join(here, "state-hash.js"), "utf8
 await page.addInitScript(fs.readFileSync(path.join(here, "scenarios.js"), "utf8"));
 await page.goto("file://" + tmp);
 await page.waitForFunction(() => window.__hook, null, { timeout: 30000 });
-const out = await page.evaluate(() => window.__runScenarios());
+const out = await page.evaluate((which) => window.__runScenarios(which), "classic");
 await browser.close();
 fs.unlinkSync(tmp);
 if (errors.length) console.error("ОШИБКИ СТРАНИЦЫ:\n" + errors.join("\n"));

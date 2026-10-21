@@ -173,11 +173,6 @@ export function setCargoDraft(v) {
   cargoDraft = v;
   return v;
 }
-export let territoryPage = 0;
-export function setTerritoryPage(v) {
-  territoryPage = v;
-  return v;
-}
 export let districtPopupAnchor = { x: 12, y: 64 };
 export function setDistrictPopupAnchor(v) {
   districtPopupAnchor = v;

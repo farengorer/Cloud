@@ -1,3 +1,4 @@
+import { buildBorders, type BorderLine } from "./borders";
 import { ROAD_CLASS_LABELS, buildLink, linkCost, selectedRoadClass, spend } from "./actions";
 import { isSat } from "./agglomerations";
 import { hex, rgb } from "./colors";
@@ -34,6 +35,7 @@ import {
   ZONE,
   airDraft,
   cargoDraft,
+  claimMode,
   dPick,
   districtPopupAnchor,
   rdraw,
@@ -42,8 +44,6 @@ import {
   setDistrictPopupAnchor,
   setLAYER,
   setRdraw,
-  setTerritoryPage,
-  territoryPage,
 } from "./state";
 import {
   cargoRouteCost,
@@ -126,7 +126,7 @@ export function drawPolyLabels(ctx, list, s) {
     halo(ctx, d.name, x * s, y * s);
   });
 }
-/* districts are built from cities; territory around each city goes to its district */
+/* регионы: на планете это клетки карты регионов, в обычной партии территория вокруг городов */
 export const DIST = {
   key: "",
   img: null,
@@ -137,6 +137,8 @@ export const DIST = {
   H: 0,
   cellA: 4,
   nations: [],
+  /** Границы между регионами по группам (вид и владелец), только для планеты. */
+  borderGroups: [] as { kind: number; owner: number; lines: BorderLine[] }[],
 };
 const NATION = { key: "", cell: null, stats: [] };
 export function countryAt(x, y) {
@@ -216,6 +218,91 @@ function nationCompute() {
   NATION.cell = cell;
   NATION.stats = stats;
   return NATION;
+}
+/** Версия карты, на которой одна клетка и есть регион (около 40 тыс. км²). */
+export const REGION_MAP_VERSION = 4;
+/** Присоединение региона: базовая цена и надбавка за каждые 100 км от города от 100 тыс. жителей, млрд. */
+export const REGION_CLAIM_BASE = 50;
+export const REGION_CLAIM_PER_100KM = 1;
+/** Площадь суши, на которой помещается стартовый регион, км². */
+export const MIN_START_LAND_KM2 = 30000;
+
+/**
+ * Расставляет центры регионов «синим шумом»: точки суши не ближе друг к другу, чем
+ * заданное расстояние, поэтому клетки получаются похожего размера. Центры, уже стоящие
+ * на каждом материке, считаются занятыми. Возвращает число центров.
+ */
+function scatterRegionSeeds(land, landCount, W, H, target, count, owner, points, rr) {
+  const kmX = RW / W,
+    kmY = RH / H,
+    cosAt = (gy) => Math.max(0.2, Math.cos(((gy + 0.5) / H - 0.5) * Math.PI));
+  let landKm2 = 0;
+  for (let i = 0; i < landCount; i++) {
+    const gy = (land[i] / W) | 0;
+    landKm2 += kmX * kmY * Math.max(0.08, Math.cos(((gy + 0.5) / H - 0.5) * Math.PI));
+  }
+  let minKm = 0.7 * Math.sqrt(landKm2 / Math.max(1, target));
+  for (let i = landCount - 1; i > 0; i--) {
+    const j = Math.floor(rr() * (i + 1)),
+      q = land[i];
+    land[i] = land[j];
+    land[j] = q;
+  }
+  for (let pass = 0; pass < 8 && count < target; pass++) {
+    const bp = Math.max(1, Math.ceil(minKm / kmY)),
+      nbx = Math.ceil(W / bp),
+      bins = new Map<number, number[]>(),
+      put = (q) => {
+        const key = Math.floor(((q / W) | 0) / bp) * nbx + Math.floor((q % W) / bp);
+        const list = bins.get(key);
+        if (list) list.push(q);
+        else bins.set(key, [q]);
+      };
+    for (let k = 0; k < count; k++) put(points[k]);
+    for (let i = 0; i < landCount && count < target; i++) {
+      const q = land[i];
+      if (owner[q]) continue;
+      const gx = q % W,
+        gy = (q / W) | 0,
+        cx = Math.floor(gx / bp),
+        cy = Math.floor(gy / bp),
+        rx = Math.ceil(1 / cosAt(gy)) + 1;
+      let free = true;
+      for (let oy = -1; oy <= 1 && free; oy++) {
+        const by = cy + oy;
+        if (by < 0) continue;
+        for (let ox = -rx; ox <= rx && free; ox++) {
+          const list = bins.get(by * nbx + ((((cx + ox) % nbx) + nbx) % nbx));
+          if (!list) continue;
+          for (const p of list) {
+            const px = p % W,
+              py = (p / W) | 0;
+            let dx = Math.abs(px - gx);
+            if (dx > W / 2) dx = W - dx;
+            const cos = Math.min(cosAt(gy), cosAt(py)),
+              dxk = dx * kmX * cos,
+              dyk = (py - gy) * kmY;
+            if (dxk * dxk + dyk * dyk < minKm * minKm) {
+              free = false;
+              break;
+            }
+          }
+        }
+      }
+      if (!free) continue;
+      owner[q] = ++count;
+      points[count - 1] = q;
+      put(q);
+    }
+    minKm *= 0.85;
+  }
+  for (let i = 0; i < landCount && count < target; i++) {
+    const q = land[i];
+    if (owner[q]) continue;
+    owner[q] = ++count;
+    points[count - 1] = q;
+  }
+  return count;
 }
 export function makeAdminDistrictMap(seed, version = 2) {
   const legacy = version < 2,
@@ -339,9 +426,13 @@ export function makeAdminDistrictMap(seed, version = 2) {
     componentSizes.push(tail);
     componentCount++;
   }
-  const target = Math.min(
+  const regionMap = version >= REGION_MAP_VERSION,
+    target = Math.min(
       300000,
-      Math.max(componentCount, Math.ceil(landCount * (version >= 3 ? 0.06 : 0.24))),
+      Math.max(
+        componentCount,
+        Math.ceil(landCount * (regionMap ? 0.012 : version >= 3 ? 0.06 : 0.24)),
+      ),
     ),
     owner = new Uint32Array(N),
     points = new Uint32Array(target),
@@ -356,15 +447,18 @@ export function makeAdminDistrictMap(seed, version = 2) {
         points[count - 1] = q;
       }
     }
-  for (let i = 0; i < landCount && count < target; i++) {
-    const j = i + Math.floor(rr() * (landCount - i)),
-      q = land[j];
-    land[j] = land[i];
-    land[i] = q;
-    if (owner[q]) continue;
-    owner[q] = ++count;
-    points[count - 1] = q;
-  }
+  if (regionMap) {
+    count = scatterRegionSeeds(land, landCount, W, H, target, count, owner, points, rr);
+  } else
+    for (let i = 0; i < landCount && count < target; i++) {
+      const j = i + Math.floor(rr() * (landCount - i)),
+        q = land[j];
+      land[j] = land[i];
+      land[i] = q;
+      if (owner[q]) continue;
+      owner[q] = ++count;
+      points[count - 1] = q;
+    }
   let head = 0,
     tail = count;
   for (let i = 0; i < count; i++) queue[i] = points[i];
@@ -458,6 +552,61 @@ export function districtRecordAt(x, y) {
 export function districtArea(id) {
   return (S.adminMap && S.adminMap.area[id]) || 0;
 }
+/** На картах версии 4 клетка карты в пять раз крупнее прежнего района: она и есть регион. */
+function cellScale() {
+  return S.adminMap && S.adminMap.version >= REGION_MAP_VERSION ? 5 : 1;
+}
+/** Сколько клеток входит в стартовый регион: один регион, а на старых картах пять районов. */
+export function startingCellCount() {
+  return cellScale() === 1 ? 5 : 1;
+}
+/** Ближайший город от 100 тыс. жителей и расстояние до него от центра клетки. */
+function nearestMajorCity(id) {
+  const a = S.adminMap,
+    q = a.points[id],
+    gx = q % a.W,
+    gy = (q / a.W) | 0,
+    x = ((gx + 0.5) * RW) / a.W,
+    y = ((gy + 0.5) * RH) / a.H;
+  let best = null;
+  S.cities.forEach((c) => {
+    if (c.P < 100000) return;
+    const km = geoXY(c.x, c.y, x, y);
+    if (!best || km < best.km) best = { city: c, km };
+  });
+  return best;
+}
+/**
+ * Цена присоединения региона, млрд: 50 + 1 за каждые 100 км от города от 100 тыс. жителей.
+ * На картах старых версий клетки мельче, там остаётся прежняя цена района: 15 + 1 за каждые 10 км.
+ */
+export function regionClaimCost(id) {
+  const near = nearestMajorCity(id),
+    modern = cellScale() > 1,
+    step = modern ? 100 : 10,
+    base = modern ? REGION_CLAIM_BASE : 15;
+  return {
+    near,
+    base,
+    step,
+    cost: base + (near ? Math.ceil(near.km / step) * REGION_CLAIM_PER_100KM : 0),
+  };
+}
+/** Площадь материка (всех его клеток), которому принадлежит клетка, км². */
+export function landComponentArea(id) {
+  const a = S.adminMap,
+    component = districtLandComponent(id);
+  if (!a || component < 0) return 0;
+  if (!a.componentAreas) {
+    const areas = [];
+    for (let i = 0; i < a.count; i++) {
+      const c = districtLandComponent(i);
+      if (c >= 0) areas[c] = (areas[c] || 0) + a.area[i];
+    }
+    a.componentAreas = areas;
+  }
+  return a.componentAreas[component] || 0;
+}
 export function claimDistrict(id, regionId, ruralPop?, addRural = true) {
   if (!S.adminMap || id < 0 || id >= S.adminMap.count) return null;
   let d = S.districtById.get(id);
@@ -478,7 +627,9 @@ export function claimDistrict(id, regionId, ruralPop?, addRural = true) {
     id,
     regionId: ri,
     centerCity: null,
-    ruralPop: Number.isFinite(ruralPop) ? ruralPop : clamp(districtArea(id) * 1.5, 1200, 35000),
+    ruralPop: Number.isFinite(ruralPop)
+      ? ruralPop
+      : clamp(districtArea(id) * 1.5, 1200 * cellScale(), 35000 * cellScale()),
     upkeep: districtArea(id) * 0.000002,
   };
   S.districts.push(d);
@@ -574,48 +725,6 @@ function districtLandComponent(id) {
   if (!a || id < 0 || id >= a.count) return -1;
   return a.component ? a.component[a.points[id]] : -1;
 }
-export function districtsInLandComponent(id) {
-  const a = S.adminMap,
-    component = districtLandComponent(id);
-  if (!a || component < 0) return 0;
-  if (!a.componentDistrictCounts) {
-    const counts = [];
-    for (let i = 0; i < a.count; i++) {
-      const c = districtLandComponent(i);
-      if (c >= 0) counts[c] = (counts[c] || 0) + 1;
-    }
-    a.componentDistrictCounts = counts;
-  }
-  return a.componentDistrictCounts[component] || 0;
-}
-function assignDistrictRegion(id, regionId) {
-  const d = S.districtById.get(+id),
-    ri = +regionId;
-  if (!d || !S.regions[ri]) return false;
-  if (d.regionId === ri) return true;
-  const component = districtLandComponent(d.id),
-    target = S.regions[ri];
-  if ((target.districts || []).some((other) => districtLandComponent(other) !== component))
-    return false;
-  const old = S.regions[d.regionId];
-  if (old) old.districts = old.districts.filter((x) => x !== d.id);
-  d.regionId = ri;
-  if (!target.districts.includes(d.id)) target.districts.push(d.id);
-  S.cities.forEach((c) => {
-    if (c.districtId === d.id && target.center == null) target.center = c.i;
-  });
-  DIST.key = "";
-  ZONE.key = "";
-  return true;
-}
-function districtStatus(d) {
-  const cities = S.cities.filter((c) => c.districtId === d.id);
-  if (!cities.length) return "межселенная территория";
-  const r = S.regions[d.regionId];
-  if (r && (r.districts || []).length === 1) return "город-регион · республиканского значения";
-  const center = cities.find((c) => c.i === d.centerCity);
-  return center ? "районный центр: " + center.name : "город есть · центр не назначен";
-}
 function splitRegionsAcrossSea() {
   const original = S.regions.length;
   for (let ri = 0; ri < original; ri++) {
@@ -664,7 +773,7 @@ export function restoreTerritory() {
     S.regions.forEach((r, ri) => {
       const anchor = S.cities[r.center] || S.cities[(r.cities || [])[0]] || S.cities[0];
       if (anchor)
-        initialDistrictIds(anchor.x, anchor.y, 5).forEach((id) =>
+        initialDistrictIds(anchor.x, anchor.y, startingCellCount()).forEach((id) =>
           claimDistrict(id, ri, undefined, false),
         );
       (r.cities || []).forEach((i) => {
@@ -742,39 +851,38 @@ function distCompute() {
     cnt = S.regions.map(() => 0),
     area = S.regions.map(() => 0),
     cell = new Int32Array(N).fill(-1);
+  DIST.borderGroups = [];
   if (S.planet && S.adminMap) {
+    const tint = S.regions.map((r) => hex(r.color));
     for (let q = 0; q < N; q++) cell[q] = S.adminMap.owner[q] - 1;
     for (let gy = 0; gy < H; gy++)
       for (let gx = 0; gx < W; gx++) {
         const q = gy * W + gx,
           id = cell[q];
         if (id < 0) continue;
-        const d = S.districtById.get(id),
-          ri = d ? d.regionId : -1,
-          nb = (a, b) => (b < 0 || b >= H ? -1 : cell[b * W + (S.planet ? (a + W) % W : a)]),
-          neighbors = [nb(gx - 1, gy), nb(gx + 1, gy), nb(gx, gy - 1), nb(gx, gy + 1)],
-          edge = neighbors.some((v) => v !== id),
-          regionEdge = neighbors.some((v) => {
-            const n = S.districtById.get(v);
-            return v !== id && n && d && n.regionId !== ri;
-          });
-        let color = "#9CA5A0",
-          alpha = edge ? 210 : 0;
-        if (d) {
-          const reg = S.regions[ri];
-          color = reg ? reg.color : "#AAB7AF";
-          alpha = regionEdge ? 255 : edge ? 210 : 24;
-          cnt[ri] = (cnt[ri] || 0) + 1;
-          const lat = ((gy + 0.5) / H - 0.5) * Math.PI;
-          area[ri] = (area[ri] || 0) + (RW / W) * (RH / H) * Math.max(0.08, Math.cos(lat));
-        }
-        const col = hex(color),
-          p = q * 4;
+        const d = S.districtById.get(id);
+        if (!d) continue;
+        const ri = d.regionId,
+          col = tint[ri] || hex("#AAB7AF"),
+          p = q * 4,
+          lat = ((gy + 0.5) / H - 0.5) * Math.PI;
         im.data[p] = col[0];
         im.data[p + 1] = col[1];
         im.data[p + 2] = col[2];
-        im.data[p + 3] = alpha;
+        im.data[p + 3] = 30;
+        cnt[ri] = (cnt[ri] || 0) + 1;
+        area[ri] = (area[ri] || 0) + (RW / W) * (RH / H) * Math.max(0.08, Math.cos(lat));
       }
+    const groups = new Map<string, { kind: number; owner: number; lines: BorderLine[] }>();
+    buildBorders(cell, W, H, RW, RH, (id) => {
+      const d = S.districtById.get(id);
+      return d ? d.regionId : -1;
+    }).forEach((line) => {
+      const key = line.kind + ":" + line.owner;
+      if (!groups.has(key)) groups.set(key, { kind: line.kind, owner: line.owner, lines: [] });
+      groups.get(key).lines.push(line);
+    });
+    DIST.borderGroups = [...groups.values()];
   } else {
     for (let gy = 0; gy < H; gy++)
       for (let gx = 0; gx < W; gx++) {
@@ -910,14 +1018,51 @@ export function drawCountryNames(ctx, s, wrapShift) {
   });
   ctx.restore();
 }
+/** Тонкие чёткие границы регионов. Между свободными регионами они видны только при приближении или в режиме «Территория». */
+function drawBorderLines(ctx, s, wrapShift, w, h, OX, OY) {
+  const left = -OX / s - wrapShift,
+    right = (w - OX) / s - wrapShift,
+    top = -OY / s,
+    bottom = (h - OY) / s,
+    showFree = LAYER === "territory" || claimMode || V.z >= 12;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const g of DIST.borderGroups) {
+    if (g.kind === 0 && !showFree) continue;
+    if (g.kind === 0) {
+      ctx.strokeStyle = rgb(C.ink, 0.28);
+      ctx.lineWidth = 0.8;
+    } else if (g.kind === 2) {
+      ctx.strokeStyle = rgb(C.ink, 0.85);
+      ctx.lineWidth = 1.2;
+    } else {
+      const r = S.regions[g.owner];
+      ctx.strokeStyle = r ? r.color : "#AAB7AF";
+      ctx.lineWidth = 1.4;
+    }
+    ctx.beginPath();
+    for (const l of g.lines) {
+      if (l.x1 < left || l.x0 > right || l.y1 < top || l.y0 > bottom) continue;
+      if ((l.x1 - l.x0) * s < 0.6 && (l.y1 - l.y0) * s < 0.6) continue;
+      const p = l.pts;
+      ctx.moveTo(p[0] * s, p[1] * s);
+      for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i] * s, p[i + 1] * s);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 export function drawRegionDistricts(ctx, s, wrapShift = 0, w = 0, h = 0, OX = 0, OY = 0) {
   if (!S.regions.length) return;
   distCompute();
   ctx.save();
   ctx.globalAlpha = 1;
-  ctx.imageSmoothingEnabled = false;
+  // На планете подложка только слабо подкрашивает регионы, поэтому её можно сглаживать.
+  ctx.imageSmoothingEnabled = !!S.planet;
   drawViewportImage(ctx, DIST.img, s, wrapShift, w, h, OX, OY);
   ctx.restore();
+  if (S.planet) drawBorderLines(ctx, s, wrapShift, w, h, OX, OY);
   S.regions.forEach((d) => {
     if (d.center == null || !S.cities[d.center]) return;
     const c = S.cities[d.center];
@@ -953,7 +1098,7 @@ function regionDistStats(d, k) {
       if (ids.has(v.districtId)) rural += v.p;
     });
   return {
-    districts: districts.length,
+    upkeep: districts.reduce((a, q) => a + (q.upkeep || 0), 0),
     n: cs.length,
     P: cs.reduce((a, c) => a + c.P + c.R, 0) + rural,
     F: cs.reduce((a, c) => a + SECT.reduce((b, x) => b + c.firms[x.k], 0), 0),
@@ -1002,7 +1147,7 @@ export function drawDist() {
   if (!S.regions.length) {
     if (tb.dataset.n !== "0") {
       tb.innerHTML =
-        '<tr><td class="empty" colspan="7">Регионов пока нет. Присоедините район и распределите его по регионам.</td></tr>';
+        '<tr><td class="empty" colspan="7">Регионов пока нет. Присоедините свободный регион на карте.</td></tr>';
       tb.dataset.n = "0";
     }
     return;
@@ -1058,131 +1203,29 @@ export function drawDist() {
       if (document.activeElement !== inp) inp.value = d.name;
       inp.style.color = d.color;
     }
-    [st.districts, st.n, fmtPop(st.P), fmtN(st.A) + " км²"].forEach((v, k) => {
-      if (tr.children[k + 2]) tr.children[k + 2].textContent = v;
-    });
+    [S.planet ? fmtM(st.upkeep) + "/год" : "–", st.n, fmtPop(st.P), fmtN(st.A) + " км²"].forEach(
+      (v, k) => {
+        if (tr.children[k + 2]) tr.children[k + 2].textContent = v;
+      },
+    );
   });
 }
-const TERRITORY_PAGE_SIZE = 100;
 export function drawTerritory() {
-  const box = $("#territoryBody"),
-    summary = $("#territorySummary");
-  if (!box || !summary) return;
-  const claimed = S.districts || [],
-    unsettled = claimed.filter((d) => !S.cities.some((c) => c.districtId === d.id)).length,
-    free = Math.max(0, (S.adminMap ? S.adminMap.count : 0) - claimed.length);
+  const summary = $("#territorySummary");
+  if (!summary) return;
+  const claimed = S.regions.length,
+    free = Math.max(0, (S.adminMap ? S.adminMap.count : 0) - (S.districts || []).length),
+    upkeep = (S.districts || []).reduce((a, d) => a + (d.upkeep || 0), 0);
   summary.textContent =
-    "В государстве: " +
-    claimed.length +
-    " районов · свободно: " +
+    "В государстве регионов: " +
+    claimed +
+    " · свободных на карте: " +
     free +
-    " · межселенная территория: " +
-    unsettled +
     " · сельских жителей: " +
     fmtPop(S.ruralPool || 0) +
-    ". Свободные районы не входят в государство.";
-  const search = ($("#territorySearch")?.value || "").trim().toLocaleLowerCase("ru"),
-    filtered = search
-      ? claimed.filter((d) => {
-          const label = "район " + (d.id + 1),
-            cities = S.cities
-              .filter((c) => c.districtId === d.id)
-              .map((c) => c.name.toLocaleLowerCase("ru"));
-          return (
-            String(d.id + 1).includes(search) ||
-            label.includes(search) ||
-            cities.some((n) => n.includes(search)) ||
-            String(S.regions[d.regionId]?.name || "")
-              .toLocaleLowerCase("ru")
-              .includes(search)
-          );
-        })
-      : claimed;
-  const pages = Math.max(1, Math.ceil(filtered.length / TERRITORY_PAGE_SIZE));
-  setTerritoryPage(clamp(territoryPage, 0, pages - 1));
-  const rows = filtered.slice(
-    territoryPage * TERRITORY_PAGE_SIZE,
-    (territoryPage + 1) * TERRITORY_PAGE_SIZE,
-  );
-  $("#territoryPageLabel").textContent = filtered.length
-    ? territoryPage * TERRITORY_PAGE_SIZE +
-      1 +
-      "–" +
-      Math.min(filtered.length, (territoryPage + 1) * TERRITORY_PAGE_SIZE) +
-      " из " +
-      filtered.length
-    : "0 районов";
-  $("#territoryPrev").disabled = territoryPage <= 0;
-  $("#territoryNext").disabled = territoryPage >= pages - 1;
-  const sig =
-    rows.map((d) => d.id + ":" + d.regionId + ":" + d.centerCity).join(",") +
-    "|" +
-    S.regions.map((r) => r.name).join("|") +
-    "|" +
-    search;
-  if (box.dataset.n !== sig && !(document.activeElement && box.contains(document.activeElement))) {
-    box.innerHTML = rows.length
-      ? rows
-          .map((d) => {
-            const cities = S.cities.filter((c) => c.districtId === d.id),
-              region = esc(S.regions[d.regionId]?.name || "—");
-            const centerOpts =
-              '<option value=""' +
-              (d.centerCity == null ? " selected" : "") +
-              ">— не назначен —</option>" +
-              cities
-                .map(
-                  (c) =>
-                    '<option value="' +
-                    c.i +
-                    '"' +
-                    (c.i === d.centerCity ? " selected" : "") +
-                    ">" +
-                    esc(c.name) +
-                    "</option>",
-                )
-                .join("");
-            return (
-              '<tr><td class="l">Район ' +
-              (d.id + 1) +
-              "</td><td>" +
-              region +
-              '</td><td><select data-district-center="' +
-              d.id +
-              '" aria-label="Районный центр района ' +
-              (d.id + 1) +
-              '"' +
-              (cities.length ? "" : " disabled") +
-              ">" +
-              centerOpts +
-              "</select></td><td>" +
-              esc(districtStatus(d)) +
-              "</td><td>" +
-              fmtM(d.upkeep) +
-              "/год</td></tr>"
-            );
-          })
-          .join("")
-      : '<tr><td class="empty" colspan="5">' +
-        (search ? "По запросу ничего не найдено." : "Присоединённых районов пока нет.") +
-        "</td></tr>";
-    box.dataset.n = sig;
-  }
-}
-function nearestMajorCityToDistrict(id) {
-  const a = S.adminMap,
-    q = a.points[id],
-    gx = q % a.W,
-    gy = (q / a.W) | 0,
-    x = ((gx + 0.5) * RW) / a.W,
-    y = ((gy + 0.5) * RH) / a.H;
-  let best = null;
-  S.cities.forEach((c) => {
-    if (c.P < 100000) return;
-    const km = geoXY(c.x, c.y, x, y);
-    if (!best || km < best.km) best = { city: c, km };
-  });
-  return best;
+    " · содержание территории: " +
+    fmtM(upkeep) +
+    "/год.";
 }
 function placeDistrictPopup() {
   const box = $("#territoryPopup"),
@@ -1196,56 +1239,45 @@ function placeDistrictPopup() {
 }
 function showDistrictPopup(id) {
   const box = $("#territoryPopup"),
-    owned = S.districtById.get(id),
-    area = fmtN(districtArea(id)) + " км²";
+    owned = S.districtById.get(id);
   box.dataset.id = String(id);
   box.hidden = false;
   if (!owned) {
-    const near = nearestMajorCityToDistrict(id),
-      extra = near ? Math.ceil(near.km / 10) : 0,
-      cost = 15 + extra;
+    const { near, base, step, cost } = regionClaimCost(id);
     box.innerHTML =
-      "<b>Свободный район " +
-      (id + 1) +
-      '</b><span class="note">Площадь: ' +
-      area +
-      '</span><span class="note">Присоединение: 15 млрд' +
+      "<b>Свободный регион</b>" +
+      '<span class="note">Площадь: ' +
+      fmtN(districtArea(id)) +
+      " км²</span>" +
+      '<span class="note">Присоединение: ' +
+      fmtM(base) +
       (near
-        ? " + 1 млрд за каждые 10 км от «" + esc(near.city.name) + "» · " + fmtN(near.km) + " км"
+        ? " + 1 млрд за каждые " +
+          step +
+          " км от «" +
+          esc(near.city.name) +
+          "» · " +
+          fmtN(near.km) +
+          " км"
         : " · рядом пока нет города от 100 тыс.") +
-      '</span><button type="button" data-district-claim>Включить в государство · ' +
+      '</span><button type="button" data-district-claim>Присоединить регион · ' +
       fmtM(cost) +
       "</button>";
   } else {
-    const component = districtLandComponent(id),
-      fits = (r) =>
-        !(r.districts || []).some((other) => districtLandComponent(other) !== component) &&
-        !(r.center != null && cityLandComponent(r.center) !== component) &&
-        !(r.manualCities || []).some((ci) => cityLandComponent(ci) !== component),
-      opts = S.regions
-        .map((r, i) => ({ r, i }))
-        .filter(({ r }) => fits(r))
-        .map(
-          ({ r, i }) =>
-            '<option value="' +
-            i +
-            '"' +
-            (i === owned.regionId ? " selected" : "") +
-            ">" +
-            esc(r.name) +
-            "</option>",
-        )
-        .join("");
+    const r = S.regions[owned.regionId],
+      cities = (r && r.cities) || [],
+      area = ((r && r.districts) || [id]).reduce((a, k) => a + districtArea(k), 0),
+      center = r && r.center != null ? S.cities[r.center] : null;
     box.innerHTML =
-      "<b>Район " +
-      (id + 1) +
-      '</b><span class="note">Площадь: ' +
-      area +
-      " · сейчас: " +
-      esc(S.regions[owned.regionId]?.name || "без региона") +
-      '</span><label class="note">Выберите регион<select data-district-popup-region>' +
-      opts +
-      '<option value="new">Создать новый регион</option></select></label>';
+      "<b>Регион «" +
+      esc((r && r.name) || "без названия") +
+      "»</b>" +
+      '<span class="note">Площадь: ' +
+      fmtN(area) +
+      " км² · городов: " +
+      cities.length +
+      (center ? " · центр: " + esc(center.name) : "") +
+      "</span>";
   }
   placeDistrictPopup();
 }
@@ -1253,7 +1285,7 @@ export function openDistrictPopup(x, y, e) {
   const id = districtAt(x, y);
   if (id < 0) {
     $("#territoryPopup").hidden = true;
-    flash("Здесь нет района суши.");
+    flash("Здесь нет суши.");
     return;
   }
   const rect = $("#view").getBoundingClientRect();
@@ -1849,35 +1881,6 @@ export function drawCargoGhost(ctx, s) {
 }
 
 export function setupDistricts() {
-  $("#territorySearch").addEventListener("input", () => {
-    setTerritoryPage(0);
-    drawTerritory();
-  });
-  $("#territoryPrev").addEventListener("click", () => {
-    setTerritoryPage(Math.max(0, territoryPage - 1));
-    drawTerritory();
-  });
-  $("#territoryNext").addEventListener("click", () => {
-    setTerritoryPage(territoryPage + 1);
-    drawTerritory();
-  });
-  $("#territoryBody").addEventListener("change", (e) => {
-    const center = e.target.dataset.districtCenter;
-    if (center == null) return;
-    const d = S.districtById.get(+center),
-      ci = e.target.value === "" ? null : +e.target.value;
-    if (!d) return;
-    d.centerCity = ci;
-    const r = S.regions[d.regionId];
-    if (r && r.center == null && ci != null) r.center = ci;
-    logEv(
-      ci == null
-        ? "В районе " + (+center + 1) + " снят районный центр"
-        : "Районный центр района " + (+center + 1) + ": " + S.cities[ci].name,
-    );
-    evaluate();
-    render();
-  });
   document.addEventListener("pointerdown", (e) => {
     const popup = $("#territoryPopup");
     if (!popup.hidden && !popup.contains(e.target) && !(e.target as HTMLElement).closest("#region"))
@@ -1889,70 +1892,18 @@ export function setupDistricts() {
     if (!b) return;
     const id = +$("#territoryPopup").dataset.id;
     if (S.districtById.has(id)) return;
-    const near = nearestMajorCityToDistrict(id),
-      cost = 15 + (near ? Math.ceil(near.km / 10) : 0);
+    const { cost } = regionClaimCost(id);
     if (!spend(cost, "territory")) {
-      flash("Нужно " + fmtM(cost) + " для присоединения района.");
+      flash("Нужно " + fmtM(cost) + " для присоединения региона.");
       return;
     }
-    const component = districtLandComponent(id),
-      fits = (r) =>
-        !(r.districts || []).some((other) => districtLandComponent(other) !== component) &&
-        !(r.center != null && cityLandComponent(r.center) !== component) &&
-        !(r.manualCities || []).some((ci) => cityLandComponent(ci) !== component);
-    let ri = S.regions.findIndex(fits);
-    if (ri < 0) {
-      ri = S.regions.length;
-      S.regions.push({
-        name: "Регион " + (ri + 1),
-        color: DCOL[ri % DCOL.length],
-        cities: [],
-        center: null,
-        manualCities: [],
-        districts: [],
-      });
-    }
-    const d = claimDistrict(id, ri);
+    const d = claimDistrict(id, -1);
     makeRuralSites(S.seed, S.ruralPool);
-    logEv(
-      "К государству присоединён район " +
-        (id + 1) +
-        " · " +
-        fmtM(cost) +
-        " · регион «" +
-        S.regions[d.regionId].name +
-        "»",
-    );
+    logEv("К государству присоединён регион «" + S.regions[d.regionId].name + "» · " + fmtM(cost));
     DIST.key = "";
     evaluate();
     render();
     showDistrictPopup(id);
-  });
-  $("#territoryPopup").addEventListener("change", (e) => {
-    if (!e.target.matches("[data-district-popup-region]")) return;
-    const id = +$("#territoryPopup").dataset.id,
-      value = e.target.value;
-    let ri;
-    if (value === "new") {
-      ri = S.regions.length;
-      S.regions.push({
-        name: "Регион " + (ri + 1),
-        color: DCOL[ri % DCOL.length],
-        cities: [],
-        center: null,
-        manualCities: [],
-        districts: [],
-      });
-    } else ri = +value;
-    if (!assignDistrictRegion(id, ri)) {
-      flash("Регион должен находиться на той же суше.");
-      showDistrictPopup(id);
-      return;
-    }
-    logEv("Район " + (id + 1) + " переведён в регион «" + S.regions[ri].name + "»");
-    evaluate();
-    render();
-    $("#territoryPopup").hidden = true;
   });
   $("#dbody").addEventListener("change", (e) => {
     const i = e.target.dataset.dc;

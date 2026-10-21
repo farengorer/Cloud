@@ -6,7 +6,8 @@ import {
   airlineClick,
   cargoRouteClick,
   districtAt,
-  districtsInLandComponent,
+  MIN_START_LAND_KM2,
+  landComponentArea,
   endPick,
   nodeAt,
   openDistrictPopup,
@@ -144,8 +145,8 @@ function startCityProblem(x, y) {
   if (S.planet) {
     const id = districtAt(x, y);
     if (id < 0) return "Выбери устойчивый участок суши.";
-    if (districtsInLandComponent(id) < 5)
-      return "Для стартового региона выбери участок суши, где помещаются пять районов.";
+    if (landComponentArea(id) < MIN_START_LAND_KM2)
+      return "Для стартового региона выбери материк или остров площадью не менее 30 тыс. км².";
   }
   if (S.T.ridge && mtVal(x, y) > 0.55) return "Выбери место вне высоких гор.";
   if (riverDist(x, y) < 0.5) return "Город нельзя поставить на реке.";

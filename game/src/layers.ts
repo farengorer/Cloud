@@ -470,7 +470,7 @@ export function drawLegend() {
         '<b>Грузовые маршруты</b><div class="legend"><span><i class="ln" style="border-top:4px solid #72D7F4"></i>морской</span><span><i class="ln" style="border-top:4px solid #6CE0B4"></i>речной</span></div><p class="note">Линии проходят по воде. В таблице маршрутов отображаются конкретные товары, объём поставок в тоннах за год и их стоимость.</p>';
     else if (LAYER === "territory")
       h =
-        '<b>Территория государства</b><div class="legend"><span><i style="background:#9CA5A0"></i>свободный район</span><span><i style="background:var(--accent)"></i>район государства</span><span><i style="background:var(--grow)"></i>граница регионов</span></div><p class="note">Нажмите на район, чтобы открыть его меню. Свободный район присоединяется за 15 млрд плюс 1 млрд за каждые начатые 10 км от ближайшего города с населением от 100 тыс. Включённый район можно сразу перевести в регион.</p>';
+        '<b>Территория государства</b><div class="legend"><span><i style="background:#9CA5A0"></i>свободный регион</span><span><i style="background:var(--accent)"></i>регион государства</span><span><i style="background:var(--grow)"></i>граница регионов</span></div><p class="note">Нажмите на регион, чтобы открыть его меню. Свободный регион присоединяется за 50 млрд плюс 1 млрд за каждые начатые 100 км от ближайшего города с населением от 100 тыс.</p>';
     else if (LAYER === "nature")
       h =
         '<b>Природные биомы</b><div class="legend">' +
