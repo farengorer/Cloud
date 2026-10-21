@@ -21,7 +21,11 @@ const CACHE_LIMIT = 260;
 interface Entry {
   canvas: HTMLCanvasElement;
   used: number;
+  /** Плитку надо пересчитать, но пока показывается прежняя, чтобы карта не мигала. */
+  stale?: boolean;
 }
+/** Береговая «подушка» вокруг города видна только на плитках, где пиксель не крупнее этого, км. */
+const ANCHOR_VISIBLE_KM = 6;
 interface Task {
   L: number;
   tx: number;
@@ -65,6 +69,7 @@ export function reliefStats() {
     workers: slots.filter((s) => s.worker).length,
     fallback: workersFailed,
     ready: !!base,
+    coarse: reliefHasCoarse(),
   };
 }
 export function reliefReady() {
@@ -138,10 +143,12 @@ export function setReliefAnchors(next: number[]) {
   anchorVersion++;
   for (const slot of slots) slot.worker?.postMessage({ type: "anchors", anchors });
   if (local) local.anchors = anchors;
-  // плитки возле новых городов надо перерисовать
+  // Плитки возле новых городов надо пересчитать. Крупные уровни не трогаем: подушка там меньше
+  // пикселя, а именно они держат картинку. Устаревшая плитка остаётся на экране до замены.
   for (const [key, entry] of cache) {
     const [g, L, tx, ty] = key.split(":").map(Number);
-    if (g === generation && touches(L, tx, ty, added)) (cache.delete(key), entry.canvas.remove());
+    if (g !== generation || tileSize(base, L).th / TILE > ANCHOR_VISIBLE_KM) continue;
+    if (touches(L, tx, ty, added)) entry.stale = true;
   }
 }
 function touches(L: number, tx: number, ty: number, pts: number[]) {
@@ -164,7 +171,7 @@ function want(L: number, tx: number, ty: number, dist: number) {
   const have = cache.get(key);
   if (have) {
     have.used = frame;
-    return;
+    if (!have.stale) return;
   }
   const queued = pending.get(key);
   if (queued) {
@@ -298,6 +305,16 @@ export function drawRelief(
 export function reliefBeginFrame() {
   frame++;
   pending.clear();
+  ensureCoarse();
+}
+/** Две самые крупные плитки держат картинку, пока нет мелких: если их нет, запрашиваем снова. */
+function ensureCoarse() {
+  if (!base) return;
+  for (let L = 0; L <= 1; L++)
+    for (let ty = 0; ty < 2 ** L; ty++)
+      for (let tx = 0; tx < 2 ** (L + 1); tx++)
+        if (!cache.has(keyOf(L, tx, ty))) want(L, tx, ty, 1e9);
+  pump();
 }
 /** Есть ли самый крупный уровень (две плитки на весь мир): с него можно показывать карту. */
 export function reliefHasCoarse() {

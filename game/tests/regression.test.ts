@@ -277,6 +277,99 @@ describe("интерфейс", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  it("основание города не сбрасывает печатный рельеф", async () => {
+    await page.evaluate(() => {
+      const h = (window as any).__hook;
+      h.init(321, {
+        planet: true,
+        capName: "Атлас",
+        cultureId: "RU",
+        continentCount: 5,
+        continentNameStyle: "geographic",
+        foreignCount: 0,
+      });
+      document.getElementById("startPanel")!.hidden = true;
+      const c = h.S().cities[0];
+      h.V.z = 8;
+      h.V.cx = c.x;
+      h.V.cy = c.y;
+      h.render();
+    });
+    const settle = () =>
+      page.waitForFunction(
+        () => {
+          const st = (window as any).__hook.reliefStats();
+          return st.ready && st.pending === 0 && st.inflight === 0 && st.cached >= 10;
+        },
+        null,
+        { timeout: 60000 },
+      );
+    await settle();
+    const before = await page.evaluate(() => (window as any).__hook.reliefStats());
+    expect(before.coarse).toBe(true);
+    const founded = await page.evaluate(() => {
+      const h = (window as any).__hook,
+        S = h.S(),
+        c = S.cities[0];
+      S.budget = 800;
+      const n0 = S.cities.length;
+      for (const [dx, dy] of [
+        [150, 40],
+        [-150, 40],
+        [60, 160],
+        [-80, -140],
+        [40, 60],
+        [90, 90],
+      ]) {
+        h.found(c.x + dx, c.y + dy);
+        if (S.cities.length > n0) break;
+      }
+      h.render();
+      return S.cities.length - n0;
+    });
+    expect(founded).toBe(1);
+    await settle();
+    const after = await page.evaluate(() => (window as any).__hook.reliefStats());
+    expect(after.coarse).toBe(true); // крупные плитки на месте, карта не вернулась к старой картинке
+    // и картинка по-прежнему печатная, а не прежняя: отличается от неё и не пустая
+    const sample = () =>
+      page.evaluate(() => {
+        (window as any).__hook.render();
+        const cv = document.querySelector<HTMLCanvasElement>("#region")!,
+          ctx = cv.getContext("2d")!;
+        let hash = 0,
+          sum = 0,
+          sum2 = 0,
+          n = 0;
+        for (let y = 20; y < cv.height - 20; y += 40)
+          for (let x = 20; x < cv.width - 20; x += 40) {
+            const d = ctx.getImageData(x, y, 1, 1).data,
+              l = (d[0] + d[1] + d[2]) / 3;
+            sum += l;
+            sum2 += l * l;
+            n++;
+            hash = (hash * 31 + d[0] * 3 + d[1] * 5 + d[2] * 7) | 0;
+          }
+        const mean = sum / n;
+        return { hash, std: Math.sqrt(sum2 / n - mean * mean) };
+      });
+    const on = await sample();
+    await page.evaluate(() => {
+      const box = document.querySelector<HTMLInputElement>("#appRelief")!;
+      box.checked = false;
+      box.dispatchEvent(new Event("change"));
+    });
+    const off = await sample();
+    await page.evaluate(() => {
+      const box = document.querySelector<HTMLInputElement>("#appRelief")!;
+      box.checked = true;
+      box.dispatchEvent(new Event("change"));
+    });
+    expect(on.hash).not.toBe(off.hash);
+    expect(on.std).toBeGreaterThan(4);
+    expect(pageErrors).toEqual([]);
+  });
+
   it("сохранение и загрузка сохраняют регионы", async () => {
     const before = await page.evaluate(() => {
       const S = (window as any).__hook.S();
