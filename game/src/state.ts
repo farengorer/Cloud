@@ -54,7 +54,7 @@ export function setTexVer(v) {
 }
 export let FONT = { d: "sans-serif", b: "sans-serif", m: "monospace" };
 export let founding = false;
-export function setFounding(v) {
+export function assignFounding(v) {
   founding = v;
   return v;
 }

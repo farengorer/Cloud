@@ -35,6 +35,7 @@ import {
   S,
   TAB,
   airDraft,
+  assignFounding,
   bdraw,
   cargoDraft,
   claimMode,
@@ -64,7 +65,6 @@ import {
   setDEdit,
   setDPick,
   setDragMoved,
-  setFounding,
   setGhost,
   setHasActiveGame,
   setLastT,
@@ -269,8 +269,8 @@ export function setPlay(v) {
     onRender();
   }
 }
-function setFounding(v) {
-  setFounding(v);
+export function setFounding(v) {
+  assignFounding(v);
   setGhost(null);
   probeAt(0, 0, "");
   if (S) {

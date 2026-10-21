@@ -2,7 +2,7 @@ import { ROAD_CLASS_LABELS, buildLink, linkCost, selectedRoadClass, spend } from
 import { isSat } from "./agglomerations";
 import { hex, rgb } from "./colors";
 import { RH, RW, SECT } from "./config";
-import { RC } from "./controls";
+import { RC, setFounding } from "./controls";
 import {
   V,
   drawRegion,
@@ -37,7 +37,6 @@ import {
   rdraw,
   rmode,
   setDPick,
-  setFounding,
   setLAYER,
   setRdraw,
   setTerritoryPage,

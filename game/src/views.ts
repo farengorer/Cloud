@@ -1,7 +1,7 @@
 import { ROAD_CLASS_LABELS, selectedRoadClass } from "./actions";
 import { planCity } from "./agglomerations";
 import { MAXC } from "./config";
-import { RC, mapPos } from "./controls";
+import { RC, mapPos, setFounding } from "./controls";
 import { DIST, nodeAt } from "./districts";
 import { drawBudget, drawCity, drawRegion, render } from "./draw";
 import { drawLegend } from "./layers";
@@ -38,7 +38,6 @@ import {
   setCmode,
   setDPick,
   setFLOWS,
-  setFounding,
   setHINTMSG,
   setHintT,
   setLAYER,

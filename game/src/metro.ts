@@ -3,6 +3,7 @@ import { planCity } from "./agglomerations";
 import { metroUpdate } from "./city";
 import { cityView, rgb } from "./colors";
 import { CELLKM, G, WATER } from "./config";
+import { setFounding } from "./controls";
 import { addVertex, drawEditPoly, drawPolyLabels, drawPolys } from "./districts";
 import { drawCity, drawKpis, halo, render } from "./draw";
 import { evaluate, logEv } from "./model";
@@ -24,7 +25,6 @@ import {
   setCdrag,
   setCghost,
   setDEdit,
-  setFounding,
   setLASTCV,
   setMdraw,
 } from "./state";
