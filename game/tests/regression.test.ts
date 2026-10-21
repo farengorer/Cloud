@@ -405,6 +405,7 @@ describe("интерфейс", () => {
       const h = (window as any).__hook,
         S = h.S();
       S.budget = 500;
+      S.sel = 0; // форма аэропорта показывается для выбранного города
       h.doAct(S.cities[0], "air");
       h.doAct(S.cities[0], "airUpgrade");
       h.render();
