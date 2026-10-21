@@ -1,0 +1,11 @@
+{
+  "name": "Симулятор государства",
+  "short_name": "Государство",
+  "description": "Стратегический симулятор развития городов и агломерации",
+  "lang": "ru",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#151917",
+  "theme_color": "#151917",
+  "icons": [{ "src": "app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

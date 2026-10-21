@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Симулятор государства</title>
+<meta name="theme-color" content="#151917">
+<meta name="description" content="Стратегический симулятор развития городов и агломерации">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/app-icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Mono&family=PT+Sans:ital,wght@0,400;0,700;1,400&family=PT+Sans+Narrow:wght@400;700&display=swap">
+</head>
+<body>
+<audio id="bgMusic" src="./music/game-theme.mp3" loop preload="none"></audio>
+
+<div class="app">
+  <header class="top" role="toolbar" aria-label="Управление временем">
+    <h1 id="regionTitle">Верхнедонская область</h1>
+    <div class="year" id="gameDate" aria-label="январь 2026"><span id="year">2026</span><span class="month" id="month">январь</span></div>
+    <div class="btns">
+      <button class="primary" id="play" type="button">Запустить</button>
+      <button id="step" type="button">+1 год</button>
+      <button id="menuOpen" type="button">Меню</button>
+      <button id="musicToggle" type="button" aria-pressed="false" title="Включить фоновую музыку">♫ Музыка: выкл</button>
+      <div class="seg" role="group" aria-label="Скорость игры">
+        <button type="button" data-yps="0.027777777777777776" title="Месяц за 3 секунды" aria-pressed="false">Медленно</button>
+        <button type="button" data-yps="0.041666666666666664" title="Месяц за 2 секунды" aria-pressed="false">Неторопливо</button>
+        <button type="button" data-yps="0.08333333333333333" title="Месяц за 1 секунду" aria-pressed="true">Нормально</button>
+        <button type="button" data-yps="0.25" title="Квартал за 1 секунду" aria-pressed="false">Быстро</button>
+        <button type="button" data-yps="1" title="Год за 1 секунду" aria-pressed="false">Очень быстро</button>
+      </div>
+      <button id="reset" type="button">Новая игра</button>
+    </div>
+    <div class="kpis">
+      <button type="button" class="kpi kpi-button" id="budgetKpi" title="Открыть государственный бюджет" aria-haspopup="dialog" aria-controls="budgetDialog"><span class="label">Бюджет · открыть ведомость</span><b id="kBudget">–</b><small id="kIncome"></small></button>
+      <div class="kpi"><span class="label">Население</span><b id="kTotal">–</b><small id="kCities"></small></div>
+      <div class="kpi"><span class="label">Приток в столицу</span><b id="kExt">–</b><small id="kExtLabel">сельское население · человек/год</small></div>
+      <div class="kpi"><span class="label">Энергия</span><b id="kEn">–</b><small id="kEn2"></small></div>
+      <div class="kpi"><span class="label">Фирм</span><b id="kFirms">–</b></div>
+    </div>
+  </header>
+
+  <div class="main">
+    <nav class="rail" aria-label="Инструменты">
+      <button type="button" class="tool" data-tool="select" aria-pressed="true" title="Выбор (Esc)"><svg viewBox="0 0 24 24"><path d="M6 3l12 9-5.5 1.2L10 19z"/></svg>Выбор</button>
+      <span class="sep" data-for="region"></span>
+      <button type="button" class="tool" data-tool="found" data-for="region" aria-pressed="false" title="Основать город (F)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>Город</button>
+      <button type="button" class="tool" data-tool="road" data-for="region" aria-pressed="false" title="Автодорога (R)"><svg viewBox="0 0 24 24"><path d="M8 21L10.5 3M16 21L13.5 3M12 6.5v2M12 11.5v2M12 16.5v2"/></svg>Дорога</button>
+      <button type="button" class="tool" data-tool="rail" data-for="region" aria-pressed="false" title="Железная дорога"><svg viewBox="0 0 24 24"><path d="M9 3v18M15 3v18M6 6h12M6 10.5h12M6 15h12M6 19.5h12"/></svg>Ж/д</button>
+      <button type="button" class="tool" data-tool="airline" data-for="region" aria-pressed="false" title="Спроектировать авиалинию между аэропортами"><svg viewBox="0 0 24 24"><path d="M3 13l8-2 4-7c.5-.9 2-.4 1.8.7L15 11l5 1c1.2.2 1.3 1.7.1 2L14 15l-3 5-1.6-.3.9-5.4-5.6.8-1.5 1.5-1.2-.3 1-2.2L2 12.8z"/></svg>Авиалиния</button>
+      <button type="button" class="tool" data-tool="cargoSea" data-for="region" aria-pressed="false" title="Нарисовать морской грузовой маршрут между портами"><svg viewBox="0 0 24 24"><path d="M3 14h18l-3 5H7zM6 11l6-8 6 8M12 3v11"/></svg>Морской груз</button>
+      <button type="button" class="tool" data-tool="cargoRiver" data-for="region" aria-pressed="false" title="Нарисовать речной грузовой маршрут между портами"><svg viewBox="0 0 24 24"><path d="M5 2c12 4-2 8 10 11s-2 7 5 9M4 5l3 1M13 11l3 1M16 17l3 1"/></svg>Речной груз</button>
+      <button type="button" class="tool" data-tool="up" data-for="region" aria-pressed="false" title="Сделать участок скоростным"><svg viewBox="0 0 24 24"><path d="M13.5 2.5L5.5 14h6l-1 7.5 8-11.5h-6z"/></svg>Скоростная</button>
+      <span class="sep" data-for="region"></span>
+      <button type="button" class="tool" data-tool="np" data-for="region" aria-pressed="false" title="Национальный парк, 2 млрд"><svg viewBox="0 0 24 24"><path d="M12 3l-6 8h3.5L5 17h14l-4.5-6H18zM12 17v4"/></svg>Нацпарк</button>
+      <button type="button" class="tool" data-tool="zap" data-for="region" aria-pressed="false" title="Заповедник, 1 млрд"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.2-3 7.2-7 9-4-1.8-7-4.8-7-9V6z"/><path d="M9 12.5l2 2 4-4.5"/></svg>Заповедник</button>
+      <button type="button" class="tool" data-tool="claim" data-for="region" aria-pressed="false" title="Присоединить свободный район"><svg viewBox="0 0 24 24"><path d="M4 5h7v6H4zM13 5h7v6h-7zM4 13h7v6H4zM13 13h7v6h-7z"/><path d="M15 8h3M16.5 6.5v3"/></svg>Район</button>
+      <span class="sep"></span>
+      <button type="button" class="tool" data-tool="biz" data-for="city" aria-pressed="false" title="Деловой центр, 2 млрд за квартал"><svg viewBox="0 0 24 24"><path d="M5 21V9h6v12M11 21V3h8v18M3 21h18M14 7h2M14 11h2M14 15h2M7.5 13h1M7.5 16.5h1"/></svg>Деловой центр</button>
+      <button type="button" class="tool" data-tool="metro" data-for="city" aria-pressed="false" title="Новая линия метро"><svg viewBox="0 0 24 24"><path d="M4 19V6l8 9 8-9v13"/></svg>Метро</button>
+    </nav>
+
+    <section class="stage" aria-label="Карта">
+      <div class="stagebar">
+        <div class="seg" role="group" aria-label="Что показывать">
+          <button type="button" id="viewR" aria-pressed="true">Карта</button>
+          <button type="button" id="viewC" aria-pressed="false">План города</button>
+        </div>
+        <div class="seg" role="group" aria-label="Слой карты планеты" data-lg="region">
+          <button type="button" data-layer="growth" aria-pressed="true">Рост</button>
+          <button type="button" data-layer="spec" aria-pressed="false">Специализация</button>
+          <button type="button" data-layer="dens" aria-pressed="false">Плотность</button>
+          <button type="button" data-layer="land" aria-pressed="false">Цена земли</button>
+          <button type="button" data-layer="acc" aria-pressed="false">Доступность</button>
+          <button type="button" data-layer="airlinks" aria-pressed="false" title="Диспетчерская карта авиасообщения">Диспетчер</button>
+          <button type="button" data-layer="cargo" aria-pressed="false" title="Грузовые линии между портами">Порты</button>
+          <button type="button" data-layer="territory" aria-pressed="false" title="Районы и регионы государства">Территория</button>
+  <button type="button" data-layer="zones" aria-pressed="false">Зоны влияния</button>
+          <button type="button" data-layer="nature" aria-pressed="false">Природа</button>
+        </div>
+        <div class="seg" role="group" aria-label="Слой плана города" data-lg="city" hidden>
+          <button type="button" data-clayer="plan" aria-pressed="true">Застройка</button>
+          <button type="button" data-clayer="dens" aria-pressed="false">Плотность</button>
+          <button type="button" data-clayer="land" aria-pressed="false">Цена земли</button>
+        </div>
+        <label class="road-class-control" id="roadClassControl" hidden>Класс дороги
+          <select id="roadClassSelect" aria-label="Класс строящейся дороги">
+            <option value="local">Местная · дешевле, медленнее</option><option value="regional" selected>Региональная · обычная</option><option value="national">Национальная · быстрее, дороже</option><option value="international">Международная · к соседу</option>
+          </select>
+        </label>
+        <span data-lg="region" style="display:inline-flex;gap:12px;flex-wrap:wrap"><label class="check"><input type="checkbox" id="vilChk" checked> Сёла</label><label class="check"><input type="checkbox" id="flowChk" checked> Миграция</label><label class="check"><input type="checkbox" id="geoNamesChk" checked> Географические названия</label><label class="check"><input type="checkbox" id="resourcesChk" checked> Ресурсы</label></span>
+      </div>
+      <div class="view" id="view">
+        <canvas id="region" aria-label="Карта планеты. Щелчок по городу открывает его карточку, двойной щелчок открывает план"></canvas>
+        <canvas id="resourceOverlay" class="resource-overlay" aria-hidden="true"></canvas>
+        <canvas id="geoNameOverlay" class="geo-name-overlay" aria-hidden="true"></canvas>
+        <canvas id="city" aria-label="План застройки выбранного города" hidden></canvas>
+        <div class="startcitypicker" id="startCityPicker" hidden><p><b>Выбери место первого города.</b> Щёлкни по карте. Наведи курсор, чтобы увидеть точку.</p><button type="button" id="startCitySuggested">Оставить предложенное место</button><span class="menufatal" id="startCityStatus" role="status"></span></div>
+        <div class="zoombox"><div class="seg" role="group" aria-label="Масштаб карты" data-lg="region"><button type="button" id="zIn" aria-label="Приблизить">+</button><button type="button" id="zOut" aria-label="Отдалить">−</button><button type="button" id="zAll">Вся планета</button></div><div class="seg" role="group" aria-label="Масштаб плана" data-lg="city" hidden><button type="button" id="czIn" aria-label="Приблизить план">+</button><button type="button" id="czOut" aria-label="Отдалить план">−</button></div><span id="scaleTierLabel" class="scale-tier" aria-live="polite">Планетарный</span></div>
+        <div class="hint" id="hint" role="status" hidden></div>
+        <div class="probe" id="probe" hidden></div>
+        <div class="legendbox" id="legendBox"><button class="link" type="button" id="lgToggle" aria-expanded="true">свернуть</button><div id="legend"></div><p class="note" id="cityScale" style="margin-top:6px"></p></div>
+      </div>
+    </section>
+
+    <aside class="side" aria-label="Панель">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="city" aria-selected="true">Город</button>
+        <button type="button" role="tab" data-tab="region" aria-selected="false">Регионы</button>
+        <button type="button" role="tab" data-tab="mkt" aria-selected="false">Экономика</button>
+        <button type="button" role="tab" data-tab="log" aria-selected="false">Хроника</button>
+        <button type="button" role="tab" data-tab="game" aria-selected="false">Игра</button>
+      </div>
+
+      <div class="pane" data-pane="city" role="tabpanel">
+        <div class="phead">
+          <div class="titlebox" id="titlebox"><h2 id="hCity">–</h2><button class="link" id="renameBtn" type="button">переименовать</button></div>
+          <span class="spec" id="spec"></span>
+        </div>
+        <div class="found"><button type="button" id="openPlan">Открыть план города</button></div>
+        <div class="cstats" id="cstats"></div>
+        <details class="fold" open><summary>Авиасообщение</summary><div id="airRoutesBox"></div></details>
+        <details class="fold" open><summary>Строительство</summary><div class="acts" id="acts"></div>
+          <div class="found" style="margin-top:6px"><button type="button" data-tool="biz" aria-pressed="false">Деловой центр на плане</button><span class="note" id="bizNote"></span></div></details>
+        <details class="fold" open><summary>Метро</summary><div class="metro" id="metroBox"></div></details>
+        <details class="fold" open><summary>Экономика</summary><div class="econ" id="econ"></div></details>
+        <details class="fold" open><summary>Производство</summary><div class="econ" id="prodBox"></div></details>
+        <details class="fold"><summary>Градиент плотности Кларка</summary><div id="clarkBox"></div></details>
+      </div>
+
+      <div class="pane" data-pane="region" role="tabpanel" hidden>
+        <div class="phead"><h2>Города</h2><span class="label">логарифмическая шкала</span></div>
+        <canvas id="chart" aria-label="График численности населения городов"></canvas>
+        <div class="tablewrap scroll">
+          <table>
+            <thead><tr><th class="l">Город</th><th class="l">Специализация</th><th>Жители</th><th>Село</th><th>За год</th><th>Фирм</th><th>Загрузка</th><th>Медицина</th><th>Привлек.</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <details class="fold" open><summary>Территория государства</summary>
+          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Присоединить район на карте</button>
+          <label class="note">В регион: <select id="territoryTargetRegion" aria-label="Регион для нового района"></select></label>
+          <span class="note">Свободные районы не входят в страну. После присоединения район требует ежегодного содержания; город можно основать только на своей территории.</span></div>
+          <div id="territorySummary" class="note"></div>
+          <div class="found"><label class="note">Найти район: <input id="territorySearch" type="search" placeholder="номер или город" aria-label="Найти район или город"></label><button type="button" id="territoryPrev">Назад</button><button type="button" id="territoryNext">Дальше</button><span id="territoryPageLabel" class="note"></span></div>
+          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Район</th><th class="l">Регион</th><th class="l">Районный центр</th><th>Статус</th><th>Содержание/год</th><th></th></tr></thead><tbody id="territoryBody"></tbody></table></div></details>
+        <details class="fold" open><summary>Регионы страны</summary>
+          <p class="note">Регион объединяет районы. Переназначьте район в таблице выше; регион из одного района с городом считается городом-регионом.</p>
+          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Регион</th><th class="l">Центр региона</th><th>Районов</th><th>Городов</th><th>Жители</th><th>Площадь, км²</th><th></th></tr></thead><tbody id="dbody"></tbody></table></div></details>
+        <details class="fold" open id="zoneBox"><summary>Зоны влияния центров</summary>
+          <p class="note">Складываются сами по главным потокам. Город подчиняется тому соседу, к которому у него самая сильная связь, если сосед крупнее или это центр его области. На карте их показывает слой «Зоны влияния».</p>
+          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Центр</th><th>Городов</th><th>Горожан</th><th>Селян</th><th class="l">Подчинённые</th></tr></thead><tbody id="zbody"></tbody></table></div></details>
+        <details class="fold"><summary>Охрана природы</summary>
+          <p class="note">Нацпарк (радиус 10 км, 2 млрд) даёт туризм и привлекательность окрестным городам. Заповедник (12 км, 1 млрд) строже: туризма нет, но качество среды выше. На охраняемой территории нельзя основывать города и осваивать месторождения. Инструменты слева на панели.</p></details>
+      </div>
+
+      <div class="pane" data-pane="mkt" role="tabpanel" hidden>
+        <details class="fold" open><summary>Государственный бюджет · доходы и расходы</summary><div id="budgetBody"></div></details>
+        <details class="fold" open><summary>Рейтинг авианаправлений</summary><div id="airRankingBody"></div></details>
+        <details class="fold" open><summary>Грузовые линии портов</summary><div id="cargoRoutesBody"></div></details>
+        <details class="fold" open><summary>Энергосистема</summary><div id="enBody"></div></details>
+        <details class="fold" open><summary>Крупнейшие компании</summary><div class="tablewrap"><table class="dt"><thead><tr><th>№</th><th class="l">Компания</th><th class="l">Отрасль</th><th>Работников</th><th>Выручка</th></tr></thead><tbody id="firmBody"></tbody></table></div></details>
+        <details class="fold" open><summary>Ресурсы и цены</summary><div class="tablewrap"><table class="dt"><thead><tr><th class="l">Товар</th><th>Масса партии</th><th>Цена за тонну</th><th>Изм. цены</th><th>Выпуск, т/год</th><th>Потребл., т/год</th><th>Баланс, т/год</th><th id="mktAll" hidden>Все игроки, т/год</th></tr></thead><tbody id="mktBody"></tbody></table></div><p class="note" id="tradeSummary"></p>
+          <p class="note">Потребление включает предприятия, электростанции, стройку и население. Положительный баланс доступен для экспорта, отрицательный покрывается импортом.</p></details>
+        <details class="fold" open><summary>Производственные цепочки</summary><div id="chainBody"></div></details>
+        <details class="fold"><summary>Месторождения</summary><div id="depBody"></div></details>
+      </div>
+
+      <div class="pane" data-pane="log" role="tabpanel" hidden>
+        <ul class="log" id="log"></ul>
+      </div>
+
+      <div class="pane" data-pane="game" role="tabpanel" hidden>
+        <div class="phead"><h2 id="hOnline">Партия</h2><span class="spec" id="onStatus"></span></div>
+        <div id="onBody"></div>
+        <details class="fold" open><summary>Условия</summary>
+          <div id="sliders" class="params"></div>
+          <label class="check" style="margin-top:10px;white-space:normal;align-items:flex-start"><input type="checkbox" id="forest" checked style="margin-top:3px"> <span>Леса под охраной<br><small style="color:var(--ink-soft);font-size:12px">Застраивать лесные массивы нельзя</small></span></label></details>
+        <details class="fold"><summary>Как устроена модель</summary>
+
+    <p>Это игрушка. Коэффициенты подобраны на глаз и ни на каких данных не откалиброваны.</p>
+    <ul>
+      <li><b>Время в пути</b> считается по общей сети автодорог и железных дорог как кратчайший путь, с 10 минутами на начало и конец поездки, так что путь через промежуточный город тоже работает. Без дороги ездить можно со скоростью 15 км/ч. Автодорога даёт скорость из ползунка, скоростная в 1,6 раза больше, железная дорога 90 км/ч, скоростная 150 км/ч. До соседних регионов по умолчанию ведёт федеральная сеть со средней скоростью 40 км/ч. Внутри города от 8 до 18 минут в зависимости от размера, метро сокращает это время до 35% пропорционально охвату застройки станциями в радиусе 900 м. Линии метро рисуются вручную по станциям, у каждой свой цвет.</li>
+      <li><b>Аэропорты.</b> Полёт занимает 75 минут на дорогу в аэропорт и досмотр плюс время в воздухе. ВПП 1800 м принимает рейсы в соседние области, ВПП 3000 м ещё и в столицу. Каждый терминал пропускает 1 млн пассажиров в год, спрос равен 1,5 поездки на жителя в зоне часа езды. При перегрузке добавляется задержка. Жители других городов летают через ближайший аэропорт.</li>
+      <li><b>Фирмы.</b> По каждой отрасли есть целевая занятость, к которой число фирм подтягивается на 15% в год. Промышленность зависит от размера города, доступа к рынку (включая соседние регионы) и индустриальных парков. Добыча требует освоенного месторождения в пределах 18 км. Сельское хозяйство и лес зависят от доли чернозёма и леса вокруг. IT растёт при вузах и технопарках, туризм при музеях, природе и дальнем аэропорте, управление в основном в столице. Услуги пропорциональны населению.</li>
+      <li><b>Услуги как ёмкость.</b> Каждая больница обслуживает 60 тыс. человек, каждый вуз 120 тыс. Сначала обслуживаются свои жители (городские и сельские), а свободные места достаются соседям в пределах полутора часов пути, ближним в первую очередь. Поэтому одна больница в городе на 300 тыс. закрывает ровно 20% потребности.</li>
+      <li><b>Привлекательность</b> складывается из доступа к рабочим местам, доступа к населению, обеспеченности медициной и образованием, доступа к музеям и природы рядом, минус цена жилья.</li>
+      <li><b>Миграция внутри области.</b> Каждый год 1,5% жителей выбирают, где жить, с весом <code>A · (P + свободное жильё) · exp(−d / 90)</code>. С соседними регионами идёт чистый поток, пропорциональный разнице привлекательности, массе соседа и затухающий со временем в пути. Поэтому быстрая связь со столицей одновременно даёт рынок и ускоряет отток.</li>
+      <li><b>Застройка.</b> Когда загрузка жилья выше 96%, город строит не больше 3,5% фонда в год плюс небольшую добавку (до 8% фонда у малых городов, не больше чем на 1200 человек). Высотки ставятся у плотной застройки и у станций метро, ИЖС по краю и вдоль дорог. При загрузке ниже 88% окраинные дома пустеют (у новых городов первые 15 лет льготные). Население не может превышать жилой фонд больше чем на 6%.</li>
+      <li><b>Сёла.</b> У каждого города есть сельская округа с сёлами в радиусе 4–16 км. Её целевая численность зависит от чернозёма, леса и размера города (у крупного города округа превращается в дачно-коттеджный пояс). Округа подтягивается к цели на 4% в год: при сокращении селяне переезжают в город (урбанизация), при росте часть горожан уезжает в сёла (субурбанизация).</li>
+      <li><b>Зоны влияния</b> строятся по правилу главного потока: город подчиняется соседу, с которым у него самая сильная гравитационная связь, если тот крупнее. Территория отходит центру с наибольшим притяжением с учётом сети дорог.</li>
+      <li><b>Логистика и порты.</b> Логистический комплекс (нужны хотя бы две дороги или ж/д) даёт места в логистике и до +36% к промышленности. Речной порт усиливает промышленность и добычу. Великий музей даёт туризм и культурное притяжение на всю область и привлекает дальних переселенцев, в области их не больше трёх.</li>
+      <li><b>Производство.</b> В каждом городе можно построить предприятия: добычу у месторождений в радиусе 18 км, агрохолдинги на чернозёме, леспромхозы в лесу и переработку, которая покупает сырьё на рынке (своё сырьё в области обходится на 15% дешевле). Предприятие окупается или нет в зависимости от цен, убыточное снижает загрузку, а при нехватке работников в городе загрузка падает для всех. В бюджет идёт 25% прибыли и 12% выручки добычи.</li>
+      <li><b>Рынок.</b> Цена каждого товара тянется к уровню, который задаёт отношение спроса к предложению: мировой рынок плюс всё, что произвели и потребили игроки (стройка тоже потребляет цемент и сталь). Цены сглаживаются, за год сдвигаясь на 40% к цели.</li>
+      <li><b>Онлайн.</b> До четырёх игроков, у каждого своя область. Соседи по кольцу стоят за границей вместо искусственных регионов, миграция между областями зависит от разницы в качестве жизни. Год наступает, когда все игроки готовы, цены считаются по общему производству. Каждый считает свою область у себя, а обмениваются игроки только сводными цифрами.</li>
+      <li><b>Градиент Кларка.</b> Для выбранного города валовая плотность считается в кольцах шириной 1 км вокруг центра, по ним методом наименьших квадратов в логарифмах подбирается D(r) = D₀·e<sup>−br</sup>. Кольца берутся до радиуса, в котором живёт 98% горожан. Замер записывается каждые 10 лет.</li>
+      <li><b>Вузы</b> развиваются по уровням от института до национального исследовательского университета. Образование в городе зависит от лучшего вуза в пределах доступности: уровень, делённый на пять, с затуханием по времени в пути.</li>
+      <li><b>Вокзалы.</b> С первой железной дорогой в городе появляется станция. Её можно улучшать до вокзала, узлового вокзала, железнодорожного узла и центрального транспортно-пересадочного узла. Чем выше уровень, тем меньше времени уходит на посадку и пересадку (от 25 до 1 минуты на каждом конце пути) и тем больше мест в логистике и услугах.</li>
+      <li><b>Уникальные функции</b> существуют в единственном экземпляре на область: правительство области (его можно перенести), штаб военного округа, наукоград, особая экономическая зона.</li>
+      <li><b>Деловой центр</b> ставится кварталами на плане города и даёт рабочие места в услугах, IT и управлении, рядом с ним охотнее строятся высотки.</li>
+      <li><b>Охраняемые территории.</b> Нацпарки дают туризм и привлекательность городам в радиусе около 45 км, заповедники только привлекательность. Внутри нельзя основывать города и вести добычу.</li>
+      <li><b>Плотность населения</b> на карте планеты обобщается по равновеликим по площади ячейкам теплового растра с учётом широты; при приближении включается детализация кварталов 150 × 150 м и сельских поселений.</li>
+      <li><b>Цена земли</b> условная, это индекс модели, а не рыночные данные. В центре города она растёт с его размером и с нехваткой жилья, к окраине падает, у станций метро, делового центра и дорог выше, в промзонах и на брошенных участках ниже. На карте области цена складывается из притяжения всех городов с учётом времени пути до них плюс стоимость сельхозземли, которая выше на чернозёме.</li>
+      <li><b>Соседние регионы</b> на карте не показаны, они собраны во вкладке «Соседи». Там видны их население, привлекательность, миграция и время пути, и оттуда строятся дороги до границы.</li>
+      <li><b>Карта</b> каждый раз своя: природная зона (лесостепь, тайга, степь, смешанные леса), иногда море с одной стороны, горный хребет, вторая большая река, озёрный край. В горах и в море города не строятся, на побережье можно ставить морской порт и сильнее туризм, горы дают природную привлекательность.</li>
+      <li><b>Небоскрёбы</b> появляются в городах от 450 тыс. жителей: часть высотных кварталов в центре, у метро и у делового центра перестраивается в башни примерно на 1500 жителей на квартал.</li>
+      <li><b>Энергия.</b> Потребление 0,42 МВт на тысячу жителей плюс промышленность, добыча и каждое предприятие. Стартовая ТЭЦ на 50 МВт хватает примерно на 100 тыс. жителей. ГРЭС жжёт уголь, ТЭЦ газ, их берут с общего рынка. ГЭС, АЭС, ветер и солнце работают без топлива и загружаются первыми. Нехватку до 15% область докупает у соседей дорого, дальше начинается дефицит: предприятия недогружены, привлекательность городов падает.</li>
+      <li><b>Ресурсы и цепочки.</b> Месторождения конечны и выработываются. Сырьё идёт на переработку, топливо на электростанции, цемент и сталь на стройку, продукты и топливо потребляет население. Всё это видно во вкладке «Экономика».</li>
+      <li><b>Агломерации.</b> Город ближе 13 км к более крупному городу от 200 тыс. жителей становится его спутником. На карте области агломерация показана одним кружком, а спутники видны на плане ядра. Дороги внутри агломерации загружены пробками, тем сильнее, чем она крупнее. Метро ядра можно вести в спутники, оно пробок не знает, и жители спутников быстрее добираются до центра.</li>
+      <li><b>Доступность</b> на карте показывает время в пути от выбранного города до любой точки области: по своим дорогам, по железной дороге между городами и по местным дорогам.</li>
+      <li><b>Бюджет</b> пополняется на 20 тыс. рублей с жителя (городского и сельского) в год.</li>
+    </ul>
+  
+        </details>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<dialog id="budgetDialog" class="budget-dialog" aria-labelledby="budgetDialogTitle">
+  <div class="budget-dialog-head"><div><span class="label">Финансы государства</span><h2 id="budgetDialogTitle">Бюджет</h2></div><button type="button" id="budgetClose">Закрыть</button></div>
+  <div id="budgetSheetBody" class="budget-sheet-body"></div>
+</dialog>
+
+<div class="startbg" id="startPanel">
+  <div class="startbox" role="dialog" aria-modal="true" aria-labelledby="stH">
+    <div class="launcherbrand"><div class="launcherlogo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V9l4 3V7l5 4V4l5 3v13M8 16h1m4 0h1m4 0h1M8 8h1m9-2h1"/></svg></div><div><h2 id="stH">Симулятор государства</h2><p>Развивайте города на единой планете.</p></div></div>
+    <section class="launchercontent" id="menuHome">
+      <button class="menubutton primary" id="menuNew" type="button"><span>Новая игра<small>Создать страну на новой планете</small></span><span class="arrow">→</span></button>
+      <button class="menubutton" id="menuLoad" type="button"><span>Загрузить сохранение<small id="saveStatus">Сохранений пока нет</small></span><span class="arrow">→</span></button>
+      <button class="menubutton" id="menuContinue" type="button" hidden><span>Продолжить игру<small>Вернуться к текущей партии</small></span><span class="arrow">→</span></button>
+      <button class="menubutton" id="menuSettings" type="button"><span>Настройки<small>Внешний вид и скорость времени</small></span><span class="arrow">→</span></button>
+      <button class="menubutton" id="menuExit" type="button"><span>Выход<small>Сохранить и закрыть приложение</small></span><span class="arrow">↗</span></button>
+      <p class="menufatal" id="menuMessage" role="status" aria-live="polite"></p>
+    </section>
+    <section class="launchercontent" id="menuNewGame" hidden>
+      <h2>Новая игра</h2>
+      <label for="stRegion">Название государства<input type="text" id="stRegion" maxlength="40" value="Республика Верхнедонья"></label>
+      <label for="stCulture">Культура названий городов<select id="stCulture">
+        <option value="RU">Россия</option><option value="RS">Сербия</option><option value="PL">Польша</option><option value="GB">Великобритания</option><option value="FR">Франция</option><option value="DE">Германия</option><option value="IT">Италия</option><option value="US">США</option><option value="MX">Мексика</option><option value="AR">Аравия</option><option value="TR">Турция</option><option value="CN">Китай</option><option value="JP">Япония</option><option value="IN">Индия</option>
+      </select></label>
+      <label for="stCity">Название столицы<input type="text" id="stCity" maxlength="28" value="Москва"></label>
+      <label for="stContinents">Количество континентов<select id="stContinents"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5" selected>5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+      <label for="stContinentNames">Названия континентов<select id="stContinentNames"><option value="geographic" selected>Из библиотеки</option><option value="fantasy">Сказочные</option></select></label>
+      <p class="launchernote">Все континенты принадлежат вашему государству. Выбранная культура задаёт названия новым городам.</p>
+      <p class="launchernote">Планета создаётся случайно: континенты, реки, озёра, леса, чернозёмы и месторождения каждый раз свои. Полярные области покрыты льдами, карта замыкается слева направо. В стране есть миллион сельских жителей, которые постепенно переезжают в столицу.</p>
+      <div class="found"><button class="primary" id="stGo" type="button">Начать</button><button type="button" id="stCancel">Назад</button></div>
+    </section>
+    <section class="launchercontent" id="menuSettingsPage" hidden>
+      <h2>Настройки</h2>
+      <div class="launchersetting"><div><label for="appTheme">Тема оформления</label><small>Выберите светлую, тёмную или системную тему</small></div><select id="appTheme"><option value="system">Системная</option><option value="light">Светлая</option><option value="dark">Тёмная</option></select></div>
+      <div class="launchersetting"><div><label for="appSpeed">Скорость времени</label><small>Сколько игрового времени проходит за секунду</small></div><select id="appSpeed"><option value="0.027777777777777776">Медленно — месяц за 3 секунды</option><option value="0.041666666666666664">Неторопливо — месяц за 2 секунды</option><option value="0.08333333333333333">Нормально — месяц за 1 секунду</option><option value="0.25">Быстро — квартал за 1 секунду</option><option value="1">Очень быстро — год за 1 секунду</option></select></div>
+      <div class="launchersetting"><div><label for="appMusicVolume">Громкость музыки</label><small>Музыка включается кнопкой в верхней панели</small></div><div><input id="appMusicVolume" type="range" min="0" max="100" step="1" value="35" aria-label="Громкость музыки"><output id="appMusicVolumeValue">35%</output></div></div>
+      <div class="launchersetting"><div><label for="appAutosave">Автосохранение</label><small>Сохранять партию каждые 100 игровых лет</small></div><input id="appAutosave" type="checkbox" checked></div>
+      <div class="found"><button type="button" id="settingsBack">Готово</button></div>
+    </section>
+    <section class="launchercontent" id="menuExitPage" hidden>
+      <h2>Выход</h2>
+      <p class="launchernote" id="exitMessage">Партия сохранена. Можно закрыть окно приложения.</p>
+      <div class="found"><button class="primary" type="button" id="exitClose">Закрыть приложение</button><button type="button" id="exitBack">Назад в меню</button></div>
+    </section>
+    <div class="appversion">ВЕРСИЯ 1.0 · ОФЛАЙН-ИГРА</div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
