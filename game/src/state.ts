@@ -40,7 +40,7 @@ export function setTT(v) {
   TT = v;
   return v;
 }
-export let C = {};
+export let C: Record<string, any> = {};
 export let terrainImg = null;
 export function setTerrainImg(v) {
   terrainImg = v;
@@ -147,7 +147,7 @@ export function setCmode(v) {
   cmode = v;
   return v;
 }
-export let ZONE = { show: false, key: "", img: null, roots: [], parent: [] };
+export let ZONE: Record<string, any> = { show: false, key: "", img: null, roots: [], parent: [] };
 export let dEdit = null;
 export function setDEdit(v) {
   dEdit = v;

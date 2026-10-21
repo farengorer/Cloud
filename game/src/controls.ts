@@ -211,7 +211,9 @@ function setGameSpeed(v, persist) {
   $("#appSpeed").value = String(yps);
   document
     .querySelectorAll("[data-yps]")
-    .forEach((b) => b.setAttribute("aria-pressed", +b.dataset.yps === yps ? "true" : "false"));
+    .forEach((b) =>
+      b.setAttribute("aria-pressed", +(b as HTMLElement).dataset.yps === yps ? "true" : "false"),
+    );
   if (persist)
     try {
       localStorage.setItem(APP_PREFS_KEY, JSON.stringify(APP_PREFS));
@@ -398,7 +400,9 @@ export function setupControls() {
   });
   document
     .querySelectorAll("[data-yps]")
-    .forEach((b) => b.addEventListener("click", () => setGameSpeed(b.dataset.yps, true)));
+    .forEach((b) =>
+      b.addEventListener("click", () => setGameSpeed((b as HTMLElement).dataset.yps, true)),
+    );
   musicToggle.addEventListener("click", toggleMusic);
   $("#appMusicVolume").addEventListener("input", saveMusicVolume);
   $("#reset").addEventListener("click", () => {
@@ -497,8 +501,8 @@ export function setupControls() {
     $("#exitMessage").textContent = "Сохранение завершено. Закройте окно приложения, чтобы выйти.";
   });
   $("#exitClose").addEventListener("click", () => {
-    if (window.desktopApp) {
-      window.desktopApp.exit();
+    if ((window as any).desktopApp) {
+      (window as any).desktopApp.exit();
       return;
     }
     window.close();

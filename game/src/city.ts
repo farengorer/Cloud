@@ -161,7 +161,7 @@ export function computeForeign(c) {
     }
 }
 export function makeCity(o) {
-  const c = {
+  const c: Record<string, any> = {
     i: S.cities.length,
     name: o.name,
     x: o.x,
@@ -284,7 +284,7 @@ export function makeCity(o) {
     c.jobs[s.k] = c.firms[s.k] * s.size;
   });
   c.J = SECT.reduce((a, s) => a + c.jobs[s.k], 0);
-  if (o.pop > 15000) addIndustry(c, Math.round(6 + Math.sqrt(c.jobs.ind / 300)));
+  if (o.pop > 15000) addIndustry(c, Math.round(6 + Math.sqrt((c.jobs as any).ind / 300)));
   recomputeH(c);
   {
     const cf0 = clarkFit(c);
@@ -630,7 +630,7 @@ function place(c, type, amount) {
         (hasM ? 1 + 4 * Math.exp(-c.stD[k] / 3) : 1) *
         (c.biz && c.bizD ? 1 + 3 * Math.exp(-c.bizD[k] / 4) : 1);
       if (t === EMPTY && NB[k] >= 1) {
-        ww = (1 + NBD[k]) * (1 + NBD[k]) * Math.exp(-d / 34) * (1 + 0.6 * (rd <= 2)) * sl * sb;
+        ww = (1 + NBD[k]) * (1 + NBD[k]) * Math.exp(-d / 34) * (1 + 0.6 * Number(rd <= 2)) * sl * sb;
         g = CAP[HIGH];
       } else if ((t === IZHS || t === ABAND) && NBD[k] >= 2) {
         ww = 0.5 * (1 + NBD[k]) * (1 + NBD[k]) * Math.exp(-d / 34) * sb;
@@ -641,7 +641,7 @@ function place(c, type, amount) {
       }
     } else {
       if (t === EMPTY && (NEAR[k] || (rd <= 1 && d < 56))) {
-        ww = Math.pow(0.4 + NB[k], 1.3) * (1 + 2.5 * (rd <= 1)) * sl * Math.exp(-d / 48);
+        ww = Math.pow(0.4 + NB[k], 1.3) * (1 + 2.5 * Number(rd <= 1)) * sl * Math.exp(-d / 48);
         g = CAP[IZHS];
       } else if (t === ABAND) {
         ww = 4 * (0.4 + NB[k]);

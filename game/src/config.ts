@@ -225,5 +225,5 @@ export const PDEF = [
     hint: "Предел ввода жилья в год относительно фонда",
   },
 ];
-export const P = { forest: true };
+export const P: Record<string, any> = { forest: true };
 PDEF.forEach((d) => (P[d.id] = d.val));

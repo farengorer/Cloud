@@ -256,7 +256,7 @@ function buildEnt(c, k) {
   if (entWhy(c, k)) return;
   const d = ENT[k];
   spend(d.cost, "industry");
-  const e = { k, u: 0.5, profit: 0, rev: 0 };
+  const e: Record<string, any> = { k, u: 0.5, profit: 0, rev: 0 };
   if (d.dep) {
     const di = depFor(c, d.dep);
     e.dep = di;
@@ -305,7 +305,7 @@ export function econStep(monthScale = MONTH) {
         else {
           dp.res = Math.max(
             0,
-            dp.res - Object.values(d.out).reduce((a, b) => a + b, 0) * ue * monthScale,
+            dp.res - Object.values<any>(d.out).reduce((a, b) => a + b, 0) * ue * monthScale,
           );
           if (dp.res <= 0)
             logEv(
@@ -339,20 +339,20 @@ export function econStep(monthScale = MONTH) {
       }
       if (e.u > 0.5) e.warned = 0;
     });
-    use.cem += (c.lastBuild || 0) / (2500 * monthScale);
-    use.steel += (c.lastBuild || 0) / (9000 * monthScale);
+    (use as any).cem += (c.lastBuild || 0) / (2500 * monthScale);
+    (use as any).steel += (c.lastBuild || 0) / (9000 * monthScale);
     bc += (c.lastBuild || 0) / (2500 * monthScale);
     bs += (c.lastBuild || 0) / (9000 * monthScale);
-    use.food += (c.P + c.R) / 1e5;
-    use.fuel += ((c.P + c.R) / 1e5) * 0.6;
+    (use as any).food += (c.P + c.R) / 1e5;
+    (use as any).fuel += ((c.P + c.R) / 1e5) * 0.6;
     c.goodsUse.food += (c.P + c.R) / 1e5;
     c.goodsUse.fuel += ((c.P + c.R) / 1e5) * 0.6;
     c.goodsUse.cem += (c.lastBuild || 0) / (2500 * monthScale);
     c.goodsUse.steel += (c.lastBuild || 0) / (9000 * monthScale);
   });
   const ruralCity = S.cities.find((c) => c.govc) || S.cities[0];
-  use.food += (S.ruralPool || 0) / 1e5;
-  use.fuel += ((S.ruralPool || 0) / 1e5) * 0.6;
+  (use as any).food += (S.ruralPool || 0) / 1e5;
+  (use as any).fuel += ((S.ruralPool || 0) / 1e5) * 0.6;
   if (ruralCity) {
     ruralCity.goodsUse.food += (S.ruralPool || 0) / 1e5;
     ruralCity.goodsUse.fuel += ((S.ruralPool || 0) / 1e5) * 0.6;
@@ -601,10 +601,10 @@ export function drawMarket() {
   let tot = null;
   if (MP) {
     tot = { o: zeroGoods(), u: zeroGoods() };
-    Object.values(MP.regions).forEach((r) => {
+    Object.values<any>(MP.regions).forEach((r) => {
       for (const g in GOODS) {
-        tot.o[g] += (r.out && r.out[g]) || 0;
-        tot.u[g] += (r.use && r.use[g]) || 0;
+        tot.o[g] += ((r as any).out && (r as any).out[g]) || 0;
+        tot.u[g] += ((r as any).use && (r as any).use[g]) || 0;
       }
     });
   }

@@ -126,7 +126,10 @@ export function setTool(t) {
         document
           .querySelectorAll("[data-layer]")
           .forEach((x) =>
-            x.setAttribute("aria-pressed", x.dataset.layer === "territory" ? "true" : "false"),
+            x.setAttribute(
+              "aria-pressed",
+              (x as HTMLElement).dataset.layer === "territory" ? "true" : "false",
+            ),
           );
       }
     } else if (t === "biz") {
@@ -142,7 +145,10 @@ export function setTool(t) {
       document
         .querySelectorAll("[data-layer]")
         .forEach((x) =>
-          x.setAttribute("aria-pressed", x.dataset.layer === "cargo" ? "true" : "false"),
+          x.setAttribute(
+            "aria-pressed",
+            (x as HTMLElement).dataset.layer === "cargo" ? "true" : "false",
+          ),
         );
     } else if (t === "metro") {
       const c = planCity();
@@ -223,7 +229,9 @@ export function toolButtons() {
   const t = activeTool();
   document
     .querySelectorAll("[data-tool]")
-    .forEach((b) => b.setAttribute("aria-pressed", b.dataset.tool === t ? "true" : "false"));
+    .forEach((b) =>
+      b.setAttribute("aria-pressed", (b as HTMLElement).dataset.tool === t ? "true" : "false"),
+    );
   $("#roadClassControl").hidden = VIEW !== "region" || t !== "road";
   RC.classList.toggle(
     "drawing",
@@ -238,7 +246,7 @@ export function toolButtons() {
   h.hidden = !txt;
   h.classList.toggle("warn", !!(HINTMSG || (t === "biz" && bizMsg)));
 }
-export function setView(v, quiet) {
+export function setView(v, quiet?) {
   if (VIEW === v) {
     if (!quiet) render();
     return;
@@ -265,19 +273,21 @@ export function setView(v, quiet) {
   $("#city").hidden = v !== "city";
   $("#viewR").setAttribute("aria-pressed", v === "region" ? "true" : "false");
   $("#viewC").setAttribute("aria-pressed", v === "city" ? "true" : "false");
-  document.querySelectorAll("[data-lg]").forEach((el) => {
+  document.querySelectorAll<HTMLElement>("[data-lg]").forEach((el) => {
     el.hidden = el.dataset.lg !== v;
   });
   $("#probe").hidden = true;
   toolButtons();
   if (!quiet) render();
 }
-export function setTab(t, quiet) {
+export function setTab(t, quiet?) {
   setTAB(t);
   document
     .querySelectorAll("[data-tab]")
-    .forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === t ? "true" : "false"));
-  document.querySelectorAll("[data-pane]").forEach((p) => {
+    .forEach((b) =>
+      b.setAttribute("aria-selected", (b as HTMLElement).dataset.tab === t ? "true" : "false"),
+    );
+  document.querySelectorAll<HTMLElement>("[data-pane]").forEach((p) => {
     p.hidden = p.dataset.pane !== t;
   });
   if (!quiet) render();
@@ -286,16 +296,16 @@ const budgetDialog = $("#budgetDialog");
 
 export function setupViews() {
   document.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-tool]");
-    if (b) setTool(b.dataset.tool);
+    const b = (e.target as HTMLElement).closest("[data-tool]");
+    if (b) setTool((b as HTMLElement).dataset.tool);
   });
   document
     .querySelectorAll("[data-tab]")
-    .forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+    .forEach((b) => b.addEventListener("click", () => setTab((b as HTMLElement).dataset.tab)));
   $("#viewR").addEventListener("click", () => setView("region"));
   $("#viewC").addEventListener("click", () => setView("city"));
   $("#openPlan").addEventListener("click", () => setView("city"));
-  document.querySelectorAll("[data-layer]").forEach((b) =>
+  document.querySelectorAll<HTMLElement>("[data-layer]").forEach((b) =>
     b.addEventListener("click", () => {
       setLAYER(b.dataset.layer);
       setCmode(LAYER === "spec" ? "spec" : "growth");
@@ -320,7 +330,7 @@ export function setupViews() {
   budgetDialog.addEventListener("click", (e) => {
     if (e.target === budgetDialog) budgetDialog.close();
   });
-  document.querySelectorAll("[data-clayer]").forEach((b) =>
+  document.querySelectorAll<HTMLElement>("[data-clayer]").forEach((b) =>
     b.addEventListener("click", () => {
       setCLAYER(b.dataset.clayer);
       document

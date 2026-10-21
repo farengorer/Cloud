@@ -49,7 +49,14 @@ function fmtDens(v) {
 export function landBase(c) {
   return 1200 * Math.pow(Math.max(c.P, 2000) / 1e4, 0.55) * Math.sqrt(clamp(c.price || 1, 0.3, 6));
 }
-export const HEAT = { dk: "", lk: "", dens: null, land: null, dimg: null, limg: null };
+export const HEAT: Record<string, any> = {
+  dk: "",
+  lk: "",
+  dens: null,
+  land: null,
+  dimg: null,
+  limg: null,
+};
 export const DENS_W = 1200,
   DENS_H = 600,
   DENS_DETAIL_SCALE = 0.9;

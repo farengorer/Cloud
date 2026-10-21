@@ -65,9 +65,12 @@ export function setupApp() {
   document.addEventListener("keydown", (e) => {
     const tg = e.target,
       typing =
-        tg && (tg.tagName === "INPUT" || tg.tagName === "SELECT" || tg.tagName === "TEXTAREA");
+        tg &&
+        ((tg as HTMLElement).tagName === "INPUT" ||
+          (tg as HTMLElement).tagName === "SELECT" ||
+          (tg as HTMLElement).tagName === "TEXTAREA");
     if (typing || e.ctrlKey || e.metaKey || e.altKey || !$("#startPanel").hidden) return;
-    if (e.key === " " && tg.tagName !== "BUTTON") {
+    if (e.key === " " && (tg as HTMLElement).tagName !== "BUTTON") {
       e.preventDefault();
       setPlay(!playing);
     } else if (e.key === "f" || e.key === "а") setTool("found");

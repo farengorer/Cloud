@@ -77,7 +77,7 @@ export function hex(s) {
   const n = parseInt(s, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
-export const rgb = (a, al) =>
+export const rgb = (a, al?) =>
   al == null
     ? "rgb(" + a[0] + "," + a[1] + "," + a[2] + ")"
     : "rgba(" + a[0] + "," + a[1] + "," + a[2] + "," + al + ")";
@@ -90,7 +90,7 @@ export function smoothstep(a, b, v) {
   const t = clamp((v - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
 }
-const RELIEF_STOPS = [
+const RELIEF_STOPS: [number, number[]][] = [
   [0, [204, 194, 171]],
   [0.045, [225, 211, 180]],
   [0.12, [222, 209, 179]],

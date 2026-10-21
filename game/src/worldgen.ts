@@ -858,8 +858,8 @@ function makePlanetLegacy(T, seed, count, continentNameStyle) {
             }
           : null;
     if (waist) {
-      waist.ca = Math.cos(waist.a);
-      waist.sa = Math.sin(waist.a);
+      (waist as any).ca = Math.cos(waist.a);
+      (waist as any).sa = Math.sin(waist.a);
     }
     T.sea.continents.push({
       x,
@@ -1057,8 +1057,8 @@ function makePlanetV2(T, seed, count, continentNameStyle) {
             }
           : null;
     if (waist) {
-      waist.ca = Math.cos(waist.a);
-      waist.sa = Math.sin(waist.a);
+      (waist as any).ca = Math.cos(waist.a);
+      (waist as any).sa = Math.sin(waist.a);
     }
     shapes.push({ rx, ry, a: rr() * Math.PI, waist, coastLimit, coastProfile: coastProfile() });
   }

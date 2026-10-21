@@ -29,7 +29,7 @@ import { clamp, fbm, makeNoise, mulberry32, segDist, wrappedFbm, wrappedNoise } 
 import { isIceAt, mtVal, seaD } from "./worldgen";
 
 export function makeTerrain() {
-  const T = {
+  const T: Record<string, any> = {
     nF: makeNoise(rng),
     nE: makeNoise(rng),
     nD: makeNoise(rng),
@@ -151,7 +151,7 @@ export function riverWaterAt(x, y) {
   }
   return false;
 }
-export function riverDist(x, y, noSea) {
+export function riverDist(x, y, noSea?) {
   let m = 3.01;
   const bins = riverIndex(),
     gx = Math.floor(wrapX(x) / RIVER_BIN),
@@ -701,7 +701,7 @@ function smoothTectonicField(field, x, y) {
     v11 = field[y1 * a.W + x1];
   return (v00 + (v10 - v00) * tx) * (1 - ty) + (v01 + (v11 - v01) * tx) * ty;
 }
-export function reliefHeightAt(x, y, sd) {
+export function reliefHeightAt(x, y, sd?) {
   if (!S || !S.planet || !S.T.tectonics) return 0;
   if (sd == null) sd = seaD(x, y);
   if (sd < 0 || isIceAt(x, y)) return 0;

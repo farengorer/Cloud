@@ -32,7 +32,7 @@ export function regionName() {
   return S.regionName || REGN[S.slot || 0] + " область";
 }
 export async function mpInit() {
-  const cl = window.claude;
+  const cl = (window as any).claude;
   if (!cl || !cl.use) {
     try {
       const raw = localStorage.getItem(lsKey("solo"));
@@ -85,12 +85,12 @@ export async function mpInit() {
 export const S_SOLO = { meta: null, save: null };
 async function resolveNames(ids) {
   if (!USERC || !USERC.profiles) return;
-  const need = [...new Set(ids)].filter((i) => i && NAMESC[i] == null);
+  const need = [...new Set(ids)].filter((i) => i && NAMESC[i as any] == null);
   if (!need.length) return;
   try {
     const ps = await USERC.profiles(need);
     need.forEach((i) => {
-      NAMESC[i] = (ps[i] && ps[i].name) || "";
+      NAMESC[i as any] = (ps[i as any] && ps[i as any].name) || "";
     });
     onRender();
     if (MP) applyNeighbors();
@@ -209,7 +209,7 @@ async function mpJoin(gid) {
   evaluate();
   render();
 }
-export function mpLeave(silent) {
+export function mpLeave(silent?) {
   if (!MP) return;
   try {
     MP.unG && MP.unG();

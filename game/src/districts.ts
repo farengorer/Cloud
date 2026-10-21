@@ -95,9 +95,9 @@ function centroid(pts) {
   return [x / pts.length, y / pts.length];
 }
 function startDistrict() {}
-export function addVertex() {}
+export function addVertex(..._args: any[]) {}
 function closeDistrict() {}
-export function drawEditPoly() {}
+export function drawEditPoly(..._args: any[]) {}
 export function drawPolys(ctx, list, s) {
   list.forEach((d) => {
     const col = hex(d.color);
@@ -452,7 +452,7 @@ export function districtRecordAt(x, y) {
 export function districtArea(id) {
   return (S.adminMap && S.adminMap.area[id]) || 0;
 }
-export function claimDistrict(id, regionId, ruralPop, addRural = true) {
+export function claimDistrict(id, regionId, ruralPop?, addRural = true) {
   if (!S.adminMap || id < 0 || id >= S.adminMap.count) return null;
   let d = S.districtById.get(id);
   if (d) return d;
@@ -1522,7 +1522,10 @@ export function airlineClick(m) {
   document
     .querySelectorAll("[data-layer]")
     .forEach((x) =>
-      x.setAttribute("aria-pressed", x.dataset.layer === "airlinks" ? "true" : "false"),
+      x.setAttribute(
+        "aria-pressed",
+        (x as HTMLElement).dataset.layer === "airlinks" ? "true" : "false",
+      ),
     );
   setTab("city", true);
   airDraft.from = b;
@@ -1609,7 +1612,12 @@ export function cargoRouteClick(m) {
   setLAYER("cargo");
   document
     .querySelectorAll("[data-layer]")
-    .forEach((x) => x.setAttribute("aria-pressed", x.dataset.layer === "cargo" ? "true" : "false"));
+    .forEach((x) =>
+      x.setAttribute(
+        "aria-pressed",
+        (x as HTMLElement).dataset.layer === "cargo" ? "true" : "false",
+      ),
+    );
   cargoDraft.from = b;
   cargoDraft.msg = "Линия построена. Выберите следующий порт или нажмите Esc.";
   evaluate();

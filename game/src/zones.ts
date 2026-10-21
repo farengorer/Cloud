@@ -61,9 +61,9 @@ function zoneCompute() {
     while (parent[r] >= 0 && g++ < 50) r = parent[r];
     return r;
   });
-  const roots = [...new Set(root)].sort((a, b) => cs[b].P - cs[a].P);
+  const roots = [...new Set(root)].sort((a, b) => cs[b as any].P - cs[a as any].P);
   const col = {};
-  roots.forEach((r, k) => (col[r] = hex(ZCOL[k % ZCOL.length])));
+  roots.forEach((r, k) => (col[r as any] = hex(ZCOL[k % ZCOL.length])));
   const W = 80,
     H = 60,
     cv = document.createElement("canvas");

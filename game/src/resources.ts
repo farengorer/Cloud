@@ -219,13 +219,13 @@ export function drawChains() {
       .join(" + ") +
     (out ? " → " + out : "") +
     "</li>";
-  let html = Object.values(grp)
+  let html = Object.values<any>(grp)
     .map((g) =>
       line(
-        g.d.t + (g.n > 1 ? " ×" + g.n : "") + " · " + g.c.name,
-        Object.keys(g.d.inp).map((k) => [k, g.d.inp[k] * g.u]),
-        Object.keys(g.d.out)
-          .map((k) => flow(k, g.d.out[k] * g.u))
+        (g as any).d.t + ((g as any).n > 1 ? " ×" + (g as any).n : "") + " · " + (g as any).c.name,
+        Object.keys((g as any).d.inp).map((k) => [k, (g as any).d.inp[k] * (g as any).u]),
+        Object.keys((g as any).d.out)
+          .map((k) => flow(k, (g as any).d.out[k] * (g as any).u))
           .join(", "),
       ),
     )
@@ -274,7 +274,7 @@ export function drawDeps() {
       if (e.dep != null) {
         ext[e.dep] =
           (ext[e.dep] || 0) +
-          Object.values(ENT[e.k].out).reduce((a, b) => a + b, 0) * e.u * (c.LR || 1);
+          Object.values<any>(ENT[e.k].out).reduce((a, b) => a + b, 0) * e.u * (c.LR || 1);
       }
     }),
   );

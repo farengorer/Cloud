@@ -104,7 +104,7 @@ const CITY_KEYS = [
   "metroCov",
 ];
 function packCity(c) {
-  const o = {};
+  const o: Record<string, any> = {};
   CITY_KEYS.forEach((k) => {
     if (c[k] !== undefined) o[k] = c[k];
   });
@@ -121,7 +121,7 @@ function packCity(c) {
   return o;
 }
 function unpackCity(o, i) {
-  const c = {
+  const c: Record<string, any> = {
     i,
     name: o.name,
     x: o.x,

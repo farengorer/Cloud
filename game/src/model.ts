@@ -285,21 +285,24 @@ export function targets(c) {
     ind:
       (0.035 * P_ * Math.pow(clamp(MAr, 0.2, 4), 0.3) * aggF + 2500 * c.park) *
         (1 + 0.12 * Math.min(c.lc || 0, 3) + (hasCargoPort(c) ? 0.1 : 0)) +
-      (ej.ind || 0) +
+      ((ej as any).ind || 0) +
       (c.sez ? 2000 : 0) +
       Object.keys(PLANT).reduce((a, k) => a + PLANT[k].jobs * ((c.pw && c.pw[k]) || 0), 0),
     log:
       0.008 * P_ + 1500 * (c.lc || 0) + 1200 * (hasCargoPort(c) ? 1 : 0) + 300 * (c.station || 0),
-    mine: ej.mine || 0,
-    agro: c.soilSh * 900 + 0.006 * P_ + (ej.agro || 0),
-    wood: c.forestSh * 500 + (ej.wood || 0),
+    mine: (ej as any).mine || 0,
+    agro: c.soilSh * 900 + 0.006 * P_ + ((ej as any).agro || 0),
+    wood: c.forestSh * 500 + ((ej as any).wood || 0),
     it:
       (((c.uni ? 0.025 * P_ * (1 + 0.5 * Math.log(c.uni)) : 0.003 * P_) * aggF + 2500 * c.tech) *
         (c.runway ? 1.2 : 1) +
-        (ej.it || 0) +
+        ((ej as any).it || 0) +
         150 * (c.biz || 0)) *
       (c.sci ? 1.6 : 1),
-    tour: tourBase * (c.runway ? 1.4 : c.air ? 1.15 : 1) + 2500 * (c.gmus || 0) + (ej.tour || 0),
+    tour:
+      tourBase * (c.runway ? 1.4 : c.air ? 1.15 : 1) +
+      2500 * (c.gmus || 0) +
+      ((ej as any).tour || 0),
     gov:
       (c.govc ? 0.035 : 0.008) * P_ +
       (c.govc ? 2500 : 0) +
@@ -582,7 +585,7 @@ export function stepMonth() {
         const cf = clarkFit(c);
         if (cf) {
           cf.y = S.year + 1;
-          cf.first = 1;
+          (cf as any).first = 1;
           c.clark = [cf];
         }
       } else if ((S.year + 1) % 10 === 0) {
@@ -694,7 +697,7 @@ export function logEv(t) {
   S.log.unshift({ y: S.year, t });
   if (S.log.length > 120) S.log.pop();
 }
-export function init(seed, opts) {
+export function init(seed, opts?) {
   opts = opts || {};
   setAcc(0);
   setLastGameDate("");
@@ -755,7 +758,11 @@ export function init(seed, opts) {
   }
   document
     .querySelectorAll(".param")
-    .forEach((el) => (el.hidden = S.planet && ["inflow", "pull"].includes(el.dataset.param)));
+    .forEach(
+      (el) =>
+        ((el as HTMLElement).hidden =
+          S.planet && ["inflow", "pull"].includes((el as HTMLElement).dataset.param)),
+    );
   S.T = makeTerrain();
   if (S.tg >= 2 && !S.planet) makeWorld2(S.T, seed);
   if (S.planet) {
@@ -788,8 +795,8 @@ export function init(seed, opts) {
     cy = Number.isFinite(opts.capY) ? opts.capY : best.y;
   const c = makeCity({ name: cap, x: cx, y: cy, pop: S.planet ? 100000 : 30000 });
   c.hosp = 1;
-  c.govc = 1;
-  c.pw = { tec: 1 };
+  (c as any).govc = 1;
+  (c as any).pw = { tec: 1 };
   if (S.planet) {
     const ids = initialDistrictIds(cx, cy, 5),
       reg = {
@@ -802,14 +809,14 @@ export function init(seed, opts) {
       };
     S.regions.push(reg);
     ids.forEach((id) => claimDistrict(id, 0, 200000, false));
-    c.districtId = districtAt(cx, cy);
-    const cd = S.districtById.get(c.districtId);
+    (c as any).districtId = districtAt(cx, cy);
+    const cd = S.districtById.get((c as any).districtId);
     if (cd) cd.centerCity = c.i;
     const town = startingTownSite(cx, cy, ids);
     if (town) {
       const nm = S.names.pop() || "Новый город";
       const tc = makeCity({ name: nm, x: town.x, y: town.y, pop: 10000 });
-      tc.init = 0.72;
+      (tc as any).init = 0.72;
       const td = districtRecordAt(town.x, town.y);
       if (td && !td.centerCity) td.centerCity = tc.i;
     }

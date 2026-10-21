@@ -239,7 +239,7 @@ export function undoStation(c) {
   drawKpis();
   drawMetroBox(c);
 }
-export function finishMetro(silent) {
+export function finishMetro(silent?) {
   if (!mdraw) return;
   const c = S.cities[mdraw.city],
     l = c.metro[mdraw.li];
@@ -412,7 +412,7 @@ export function cityAspect(cv) {
   const p = cv.parentElement;
   return clamp(p.clientHeight / Math.max(1, p.clientWidth), 0.15, 4);
 }
-function cityZoom(f, mx, my) {
+function cityZoom(f, mx?, my?) {
   const c = planCity(),
     r = CC.getBoundingClientRect();
   if (mx == null) {

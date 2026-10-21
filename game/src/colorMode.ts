@@ -18,14 +18,18 @@ export function specColor(c) {
 }
 
 export function setupColorMode() {
-  document.querySelectorAll("[data-cm]").forEach((b) =>
+  document.querySelectorAll<HTMLElement>("[data-cm]").forEach((b) =>
     b.addEventListener("click", () => {
       setCmode(b.dataset.cm);
       document
         .querySelectorAll("[data-cm]")
         .forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
-      document.querySelectorAll(".lg-growth").forEach((x) => (x.hidden = cmode !== "growth"));
-      document.querySelectorAll(".lg-spec").forEach((x) => (x.hidden = cmode !== "spec"));
+      document
+        .querySelectorAll<HTMLElement>(".lg-growth")
+        .forEach((x) => (x.hidden = cmode !== "growth"));
+      document
+        .querySelectorAll<HTMLElement>(".lg-spec")
+        .forEach((x) => (x.hidden = cmode !== "spec"));
       drawRegion();
     }),
   );

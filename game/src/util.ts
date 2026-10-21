@@ -46,7 +46,7 @@ export function wrappedFbm(n, x, y, scale) {
   return q(1, 0, 0) * 0.55 + q(2.1, 17, 9) * 0.3 + q(4.3, 31, 5) * 0.15;
 }
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-export function weightedOrder(w, rng, k) {
+export function weightedOrder(w, rng, k?) {
   const n = w.length;
   if (!k || k >= n) {
     const keys = new Float64Array(n),
@@ -130,7 +130,7 @@ export function fmtTonPrice(v) {
 export function fmtT(t) {
   return t < 90 ? Math.round(t) + " мин" : (t / 60).toFixed(1).replace(".", ",") + " ч";
 }
-export function pct(v, d) {
+export function pct(v, d?) {
   return (v > 0 ? "+" : "") + (v * 100).toFixed(d == null ? 1 : d).replace(".", ",") + "%";
 }
 export function esc(s) {
@@ -139,7 +139,7 @@ export function esc(s) {
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch],
   );
 }
-export function $(s) {
+export function $(s: string): any {
   return document.querySelector(s);
 }
 export function segDist(px, py, ax, ay, bx, by) {

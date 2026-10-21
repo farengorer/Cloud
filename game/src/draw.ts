@@ -353,7 +353,7 @@ function placeLabels(
     ctx.fillStyle = rgb(C["ink-soft"]);
     halo(ctx, fmtPop(o.e.P), best.x + ew / 2, best.y + 24);
   });
-  const order = visible.slice().sort((a, b) => (b.i === S.sel) - (a.i === S.sel) || b.P - a.P);
+  const order = visible.slice().sort((a, b) => Number(b.i === S.sel) - Number(a.i === S.sel) || b.P - a.P);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   order.forEach((c) => {
@@ -1925,7 +1925,7 @@ export function drawBudget() {
   const book = financeBook(),
     last = book.last,
     cur = book.current,
-    tot = (o) => Object.values(o || {}).reduce((a, v) => a + (Number(v) || 0), 0),
+    tot = (o) => Object.values<any>(o || {}).reduce((a, v) => a + (Number(v) || 0), 0),
     income = tot(last && last.income),
     expense = tot(last && last.expense),
     net = income - expense,

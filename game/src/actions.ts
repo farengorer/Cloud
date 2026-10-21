@@ -133,7 +133,7 @@ export function selectedRoadClass() {
   const el = $("#roadClassSelect");
   return el && ROAD_CLASS_LABELS[el.value] ? el.value : "regional";
 }
-export function linkCost(a, b, mode, upgrade, roadType) {
+export function linkCost(a, b, mode, upgrade, roadType?) {
   const scale = S.planet ? 0.01 : 1;
   if (mode === "rail") return (upgrade ? 0.25 : 0.15) * linkKm(a, b) * 1.25 * scale;
   const cls = roadType || selectedRoadClass();
@@ -179,7 +179,7 @@ export function buildLink(a, b, mode, roadType) {
   }
 }
 function annualInfrastructureCosts() {
-  const out = {};
+  const out: Record<string, any> = {};
   S.roads.forEach((r) => {
     if (r.mode === "road") {
       const cls = roadClass(r),
@@ -228,11 +228,11 @@ export function recordBudgetMonth(populationIncome, fin) {
   });
   const maintenance = annualInfrastructureCosts();
   Object.keys(maintenance).forEach((k) => bookAmount("expense", k, maintenance[k] * MONTH));
-  const total = (o) => Object.values(o).reduce((a, v) => a + (Number(v) || 0), 0),
+  const total = (o) => Object.values<any>(o).reduce((a, v) => a + (Number(v) || 0), 0),
     incomeTotal = total(cur.income),
     expenseTotal = total(cur.expense),
     operating =
-      Object.values(maintenance).reduce((a, v) => a + v * MONTH, 0) +
+      Object.values<any>(maintenance).reduce((a, v) => a + v * MONTH, 0) +
       Math.max(0, -(fin.enterprise || 0)) +
       Math.max(0, -(fin.energy || 0)) +
       Math.max(0, -(fin.trade || 0));
@@ -247,7 +247,7 @@ export function recordBudgetMonth(populationIncome, fin) {
 export function closeBudgetYear(year) {
   const book = financeBook(),
     cur = book.current,
-    total = (o) => Object.values(o).reduce((a, v) => a + (Number(v) || 0), 0);
+    total = (o) => Object.values<any>(o).reduce((a, v) => a + (Number(v) || 0), 0);
   S.income = total(cur.income) - total(cur.expense);
   book.last = {
     year,
@@ -310,9 +310,9 @@ export function found(x, y) {
   const c = makeCity({ name, x, y, pop: 600, cap: 5200, grace: true, init: 0.5, rural: 400 });
   if (fc.connected && !roadWaterError(fc.near, c.i)) buildLink(fc.near, c.i, "road", "local");
   const sh = [];
-  if (c.soilSh > 0.3) sh.push("чернозёмы");
-  if (c.forestSh > 0.3) sh.push("леса");
-  if (c.river) sh.push("река");
+  if ((c as any).soilSh > 0.3) sh.push("чернозёмы");
+  if ((c as any).forestSh > 0.3) sh.push("леса");
+  if ((c as any).river) sh.push("река");
   logEv(
     "Основан город " +
       name +
