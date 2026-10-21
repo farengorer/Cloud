@@ -1,3 +1,9 @@
+import {
+  drawRelief,
+  reliefBeginFrame,
+  reliefHasCoarse,
+  setReliefUpdateHandler,
+} from "./relief/tiles";
 import { accRegion } from "./accessibility";
 import { canAct, canFound, capIdx, costOf, financeBook, foundCost, linkCost } from "./actions";
 import { planCity } from "./agglomerations";
@@ -706,12 +712,16 @@ export function drawRegion() {
     OY = h / 2 - V.cy * s;
   ctx.fillStyle = dispatch ? "#071522" : rgb(C.paper);
   ctx.fillRect(0, 0, w, h);
+  // Печатный рельеф рисуется плитками; пока крупные плитки не готовы, показывается прежняя картинка.
+  const reliefOn = !!S.planet && APP_PREFS.relief !== false && reliefHasCoarse();
+  reliefBeginFrame();
   ctx.save();
   ctx.translate(OX, OY);
   for (const wrapShift of visibleWraps(w, s)) {
     ctx.save();
     ctx.translate(wrapShift * s, 0);
-    if (terrainImg) {
+    if (reliefOn) drawRelief(ctx, s, wrapShift, w, h, OX, OY, cs);
+    else if (terrainImg) {
       ctx.imageSmoothingEnabled = true;
       drawViewportImage(ctx, terrainImg, s, wrapShift, w, h, OX, OY);
     } else {
@@ -2186,3 +2196,13 @@ export function setupDraw() {
     }
   });
 }
+
+// Новая плитка рельефа готова: перерисовываем карту не чаще раза за кадр.
+let reliefRedraw = 0;
+setReliefUpdateHandler(() => {
+  if (reliefRedraw) return;
+  reliefRedraw = requestAnimationFrame(() => {
+    reliefRedraw = 0;
+    if (S && VIEW === "region") drawRegion();
+  });
+});

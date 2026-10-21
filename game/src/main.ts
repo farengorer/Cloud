@@ -42,13 +42,8 @@ import { setupLayers } from "./layers";
 import { setupApp } from "./app";
 import { init, stepMonth } from "./model";
 import { found, canFound, foundCost, buildLink, doAct, canAct } from "./actions";
-import {
-  DIST,
-  claimDistrict,
-  districtAt,
-  openDistrictPopup,
-  regionClaimCost,
-} from "./districts";
+import { DIST, claimDistrict, districtAt, openDistrictPopup, regionClaimCost } from "./districts";
+import { reliefStats } from "./relief/tiles";
 import { loadSave, saveGame } from "./saveload";
 import { V, render } from "./draw";
 import { evaluate } from "./model";
@@ -87,6 +82,7 @@ if (import.meta.env.DEV) {
     regionClaimCost,
     saveGame,
     loadSave,
+    reliefStats,
     claimDistrict,
     makeRuralSites,
     evaluate,

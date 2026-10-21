@@ -116,6 +116,7 @@ export let APP_PREFS = {
   foreignStates: 0,
   geoNames: true,
   resources: true,
+  relief: true,
   musicVolume: 0.35,
 };
 export function setAPP_PREFS(v) {

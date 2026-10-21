@@ -1,3 +1,4 @@
+import { reliefReset } from "./relief/tiles";
 import {
   ABAND,
   BIZ,
@@ -267,6 +268,33 @@ export function buildTerrainImg() {
     }
   x.putImageData(im, 0, 0);
   setTerrainImg(cv);
+  if (atlas) publishRelief(E, EW, pad, SD, W, H);
+}
+/** Отдаёт плиткам рельефа те же высоты и расстояния до моря, что посчитала игра для всей планеты. */
+function publishRelief(E, EW, pad, SD, W, H) {
+  const flat = new Float32Array(W * H);
+  for (let py = 0; py < H; py++)
+    flat.set(E.subarray((py + pad) * EW + pad, (py + pad) * EW + pad + W), py * W);
+  let sum = 0;
+  for (let i = 0; i < 97; i++)
+    sum += flat[(i * 20011) % flat.length] + SD[(i * 30011) % SD.length] * 1e-3;
+  const biome = S.T.biomeGrid;
+  reliefReset(
+    {
+      W,
+      H,
+      E: flat,
+      SD: new Float32Array(SD),
+      biomeW: biome ? biome.W : 1,
+      biomeH: biome ? biome.H : 1,
+      biome: biome ? new Uint8Array(biome.data) : new Uint8Array([3]),
+      seed: (S.seed | 0) >>> 0,
+      worldW: RW,
+      worldH: RH,
+      anchors: S.cities.flatMap((c) => [c.x, c.y]),
+    },
+    [S.seed, S.continentCount, S.worldVersion, W, H, sum.toFixed(5)].join("|"),
+  );
 }
 export function footprint(c) {
   const key = S.year + "|" + c.builtCells + "|" + c.aband + "|" + texVer;

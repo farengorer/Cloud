@@ -228,6 +228,7 @@ export function storeAppPrefs() {
   APP_PREFS.foreignStates = 0;
   APP_PREFS.geoNames = $("#geoNamesChk").checked;
   APP_PREFS.resources = $("#resourcesChk").checked;
+  APP_PREFS.relief = $("#appRelief").checked;
   APP_PREFS.musicVolume = clamp((+$("#appMusicVolume").value || 0) / 100, 0, 1);
   setGameSpeed(APP_PREFS.speed, false);
   bgMusic.volume = APP_PREFS.musicVolume;
@@ -257,6 +258,7 @@ export function loadAppPrefs() {
   $("#appSpeed").value = String(APP_PREFS.speed);
   $("#appMusicVolume").value = String(Math.round(APP_PREFS.musicVolume * 100));
   $("#appAutosave").checked = APP_PREFS.autosave !== false;
+  $("#appRelief").checked = APP_PREFS.relief !== false;
   $("#geoNamesChk").checked = APP_PREFS.geoNames !== false;
   $("#resourcesChk").checked = APP_PREFS.resources !== false;
   storeAppPrefs();
@@ -495,6 +497,10 @@ export function setupControls() {
   $("#appTheme").addEventListener("change", storeAppPrefs);
   $("#appSpeed").addEventListener("change", storeAppPrefs);
   $("#appAutosave").addEventListener("change", storeAppPrefs);
+  $("#appRelief").addEventListener("change", () => {
+    storeAppPrefs();
+    if (S) render();
+  });
   $("#menuExit").addEventListener("click", async () => {
     setPlay(false);
     if (S && !MP) await saveGame("solo");

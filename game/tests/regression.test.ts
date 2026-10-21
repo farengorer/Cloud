@@ -216,6 +216,67 @@ describe("интерфейс", () => {
     expect(stat.owned).toBe(true);
   });
 
+  it("печатный рельеф: плитки готовы, карта не пустая, настройка переключает вид", async () => {
+    await page.evaluate(() => {
+      (window as any).__hook.init(321, {
+        planet: true,
+        capName: "Атлас",
+        cultureId: "RU",
+        continentCount: 5,
+        continentNameStyle: "geographic",
+        foreignCount: 0,
+      });
+      document.getElementById("startPanel")!.hidden = true;
+    });
+    await page.waitForFunction(
+      () => {
+        const st = (window as any).__hook.reliefStats();
+        return st.ready && st.pending === 0 && st.inflight === 0 && st.cached >= 10;
+      },
+      null,
+      { timeout: 60000 },
+    );
+    const sample = () =>
+      page.evaluate(() => {
+        (window as any).__hook.render();
+        const cv = document.querySelector<HTMLCanvasElement>("#region")!,
+          ctx = cv.getContext("2d")!;
+        let sum = 0,
+          sum2 = 0,
+          n = 0,
+          hash = 0;
+        for (let y = 20; y < cv.height - 20; y += 40)
+          for (let x = 20; x < cv.width - 20; x += 40) {
+            const d = ctx.getImageData(x, y, 1, 1).data,
+              l = (d[0] + d[1] + d[2]) / 3;
+            sum += l;
+            sum2 += l * l;
+            n++;
+            hash = (hash * 31 + d[0] * 3 + d[1] * 5 + d[2] * 7) | 0;
+          }
+        const mean = sum / n;
+        return { std: Math.sqrt(sum2 / n - mean * mean), hash };
+      });
+    const stats = await page.evaluate(() => (window as any).__hook.reliefStats());
+    expect(stats.workers > 0 || stats.fallback).toBe(true);
+    const on = await sample();
+    expect(on.std).toBeGreaterThan(4);
+    await page.evaluate(() => {
+      const box = document.querySelector<HTMLInputElement>("#appRelief")!;
+      box.checked = false;
+      box.dispatchEvent(new Event("change"));
+    });
+    const off = await sample();
+    expect(off.hash).not.toBe(on.hash); // без рельефа карта выглядит иначе
+    await page.evaluate(() => {
+      const box = document.querySelector<HTMLInputElement>("#appRelief")!;
+      box.checked = true;
+      box.dispatchEvent(new Event("change"));
+    });
+    expect((await sample()).hash).toBe(on.hash);
+    expect(pageErrors).toEqual([]);
+  });
+
   it("сохранение и загрузка сохраняют регионы", async () => {
     const before = await page.evaluate(() => {
       const S = (window as any).__hook.S();
