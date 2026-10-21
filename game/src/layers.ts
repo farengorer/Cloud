@@ -470,7 +470,7 @@ export function drawLegend() {
         '<b>Грузовые маршруты</b><div class="legend"><span><i class="ln" style="border-top:4px solid #72D7F4"></i>морской</span><span><i class="ln" style="border-top:4px solid #6CE0B4"></i>речной</span></div><p class="note">Линии проходят по воде. В таблице маршрутов отображаются конкретные товары, объём поставок в тоннах за год и их стоимость.</p>';
     else if (LAYER === "territory")
       h =
-        '<b>Территория государства</b><div class="legend"><span><i style="background:#9CA5A0"></i>свободный район</span><span><i style="background:var(--accent)"></i>район государства</span><span><i style="background:var(--grow)"></i>граница регионов</span></div><p class="note">Щёлкните по свободному району инструментом «Район», чтобы присоединить его. Цветные границы показывают регионы; тонкие внутренние линии — районы.</p>';
+        '<b>Территория государства</b><div class="legend"><span><i style="background:#9CA5A0"></i>свободный район</span><span><i style="background:var(--accent)"></i>район государства</span><span><i style="background:var(--grow)"></i>граница регионов</span></div><p class="note">Нажмите на район, чтобы открыть его меню. Свободный район присоединяется за 15 млрд плюс 1 млрд за каждые начатые 10 км от ближайшего города с населением от 100 тыс. Включённый район можно сразу перевести в регион.</p>';
     else if (LAYER === "nature")
       h =
         '<b>Природные биомы</b><div class="legend">' +
@@ -491,7 +491,7 @@ export function drawLegend() {
   } else {
     if (CLAYER === "plan")
       h =
-        '<div class="legend"><span><i style="background:var(--c-hist)"></i>старый центр</span><span><i style="background:var(--c-mid)"></i>5–9 этажей</span><span><i style="background:var(--c-high)"></i>высотная</span><span><i style="background:var(--c-sky)"></i>небоскрёбы</span><span><i style="background:var(--c-izhs)"></i>ИЖС</span><span><i style="background:var(--c-ind)"></i>промзона</span><span><i style="background:var(--c-aband)"></i>пустует</span><span><i style="background:var(--c-biz)"></i>деловой центр</span><span><i class="ln" style="border-top:3px solid var(--c-metro)"></i>метро</span><span><i class="ln" style="border-top:4px solid var(--c-air)"></i>ВПП</span><span><i style="background:var(--c-roadfill);border:2px solid var(--ink)"></i>вокзал</span></div>';
+        '<div class="legend"><span><i style="background:var(--c-hist)"></i>старый центр</span><span><i style="background:var(--c-mid)"></i>5–9 этажей</span><span><i style="background:var(--c-high)"></i>высотная</span><span><i style="background:var(--c-sky)"></i>небоскрёбы</span><span><i style="background:var(--c-izhs)"></i>ИЖС</span><span><i style="background:var(--c-ind)"></i>промзона</span><span><i style="background:var(--c-aband)"></i>пустует</span><span><i style="background:var(--c-biz)"></i>деловой центр</span><span><i class="ln" style="border-top:3px solid var(--c-metro)"></i>метро</span><span><i class="ln" style="border-top:4px solid var(--c-air)"></i>аэропорт</span><span><i style="background:var(--c-roadfill);border:2px solid var(--ink)"></i>вокзал</span></div>';
     else if (CLAYER === "dens")
       h =
         "<b>Плотность населения</b>" +

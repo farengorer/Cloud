@@ -4,7 +4,7 @@ import { buildTerrainImg, mix, rgb } from "./colors";
 import { ABAND, BIZ, CELLKM, EMPTY, G, IZHS, MID, P, RH, RW, SECT } from "./config";
 import { rebuildDistrictLookup, restoreTerritory } from "./districts";
 import { halo, render, updateGameDate } from "./draw";
-import { evaluate, init, logEv } from "./model";
+import { AIRPORT_CAPACITY, airportDefaultCode, evaluate, init, logEv } from "./model";
 import { S_SOLO, dbw, onRender } from "./multiplayer";
 import {
   C,
@@ -78,8 +78,9 @@ const CITY_KEYS = [
   "park",
   "tech",
   "air",
-  "runway",
-  "term",
+  "airLevel",
+  "airportName",
+  "airportCode",
   "seaPortLevel",
   "riverPortLevel",
   "gmus",
@@ -149,8 +150,9 @@ function unpackCity(o, i) {
     park: 0,
     tech: 0,
     air: 0,
-    runway: 0,
-    term: 0,
+    airLevel: 0,
+    airportName: "",
+    airportCode: "",
     seaPortLevel: 0,
     riverPortLevel: 0,
     port: 0,
@@ -186,6 +188,19 @@ function unpackCity(o, i) {
   CITY_KEYS.forEach((k) => {
     if (o[k] !== undefined) c[k] = o[k];
   });
+  if (c.air) {
+    if (!Number.isFinite(+o.airLevel) || +o.airLevel < 1) {
+      const oldCapacity = Math.max(100000, (Number(o.term) || 1) * 1000000);
+      c.airLevel = Math.max(
+        1,
+        AIRPORT_CAPACITY.findIndex((v) => v >= oldCapacity),
+      );
+      if (c.airLevel < 1) c.airLevel = 10;
+    }
+    c.airLevel = clamp(Math.round(c.airLevel), 1, 10);
+    c.airportName = c.airportName || "Аэропорт " + c.name;
+    c.airportCode = c.airportCode || airportDefaultCode(c.name, i);
+  }
   if (o.port && !o.seaPortLevel && !o.riverPortLevel) {
     if (c.river) c.riverPortLevel = 1;
     else c.seaPortLevel = 1;
@@ -232,6 +247,18 @@ function unpackCity(o, i) {
   bizUpdate(c);
   if (c.metro.length) metroUpdate(c);
   return c;
+}
+function normalizeAirportIdentities() {
+  const used = new Set();
+  S.cities.forEach((c) => {
+    if (!c.air) return;
+    c.airLevel = clamp(Math.round(c.airLevel || 1), 1, 10);
+    c.airportName = c.airportName || "Аэропорт " + c.name;
+    let code = String(c.airportCode || "").toUpperCase();
+    if (!/^[A-Z]{3}$/.test(code) || used.has(code)) code = airportDefaultCode(c.name, c.i, used);
+    c.airportCode = code;
+    used.add(code);
+  });
 }
 export function lsKey(gid) {
   return "verkhnedonsk-save-" + gid;
@@ -447,6 +474,7 @@ export async function loadSave(gid) {
     if (S.T.deps[i] && r >= 0) S.T.deps[i].res = r;
   });
   S.cities = docs.map((d, i) => unpackCity(d, i));
+  normalizeAirportIdentities();
   if (S.planet) restoreTerritory();
   if (S.planet && !m.cultureId)
     S.names = cultureById(S.cultureId).cities.filter((n) => !S.cities.some((c) => c.name === n));

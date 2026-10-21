@@ -246,7 +246,7 @@ function entEstimate(c, k, u) {
     cost = 0;
   for (const g in d.out) rev += d.out[g] * u * pr[g];
   for (const g in d.inp || {}) cost += d.inp[g] * u * pr[g] * localDiscount(g);
-  if (d.service) rev += d.service * u * (c.air ? 1.3 : 1) * (c.runway ? 1.2 : 1);
+  if (d.service) rev += d.service * u * (c.air ? 1.3 : 1) * (c.airLevel >= 4 ? 1.2 : 1);
   if (hasCargoPort(c) && !d.service) rev *= 1.06;
   if (c.sez && !d.service) rev *= 1.15;
   if (c.lc && d.inp) rev *= 1 + 0.04 * Math.min(c.lc, 3);

@@ -178,6 +178,11 @@ export function setTerritoryPage(v) {
   territoryPage = v;
   return v;
 }
+export let districtPopupAnchor = { x: 12, y: 64 };
+export function setDistrictPopupAnchor(v) {
+  districtPopupAnchor = v;
+  return v;
+}
 export let mdraw = null;
 export function setMdraw(v) {
   mdraw = v;

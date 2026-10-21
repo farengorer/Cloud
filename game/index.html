@@ -87,12 +87,13 @@
         </div>
         <label class="road-class-control" id="roadClassControl" hidden>Класс дороги
           <select id="roadClassSelect" aria-label="Класс строящейся дороги">
-            <option value="local">Местная · дешевле, медленнее</option><option value="regional" selected>Региональная · обычная</option><option value="national">Национальная · быстрее, дороже</option><option value="international">Международная · к соседу</option>
+            <option value="local">Местная · дешевле, медленнее</option><option value="regional" selected>Региональная · обычная</option><option value="national">Национальная · быстрее, дороже</option><option value="international">Международная · самый быстрый класс</option>
           </select>
         </label>
         <span data-lg="region" style="display:inline-flex;gap:12px;flex-wrap:wrap"><label class="check"><input type="checkbox" id="vilChk" checked> Сёла</label><label class="check"><input type="checkbox" id="flowChk" checked> Миграция</label><label class="check"><input type="checkbox" id="geoNamesChk" checked> Географические названия</label><label class="check"><input type="checkbox" id="resourcesChk" checked> Ресурсы</label></span>
       </div>
       <div class="view" id="view">
+        <div id="territoryPopup" hidden></div>
         <canvas id="region" aria-label="Карта планеты. Щелчок по городу открывает его карточку, двойной щелчок открывает план"></canvas>
         <canvas id="resourceOverlay" class="resource-overlay" aria-hidden="true"></canvas>
         <canvas id="geoNameOverlay" class="geo-name-overlay" aria-hidden="true"></canvas>
@@ -121,7 +122,7 @@
         </div>
         <div class="found"><button type="button" id="openPlan">Открыть план города</button></div>
         <div class="cstats" id="cstats"></div>
-        <details class="fold" open><summary>Авиасообщение</summary><div id="airRoutesBox"></div></details>
+        <details class="fold" open><summary>Авиасообщение</summary><div id="airportIdentity"></div><div id="airRoutesBox"></div></details>
         <details class="fold" open><summary>Строительство</summary><div class="acts" id="acts"></div>
           <div class="found" style="margin-top:6px"><button type="button" data-tool="biz" aria-pressed="false">Деловой центр на плане</button><span class="note" id="bizNote"></span></div></details>
         <details class="fold" open><summary>Метро</summary><div class="metro" id="metroBox"></div></details>
@@ -140,14 +141,13 @@
           </table>
         </div>
         <details class="fold" open><summary>Территория государства</summary>
-          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Присоединить район на карте</button>
-          <label class="note">В регион: <select id="territoryTargetRegion" aria-label="Регион для нового района"></select></label>
-          <span class="note">Свободные районы не входят в страну. После присоединения район требует ежегодного содержания; город можно основать только на своей территории.</span></div>
+          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Выбрать район на карте</button>
+          <span class="note">В режиме «Территория» нажмите район: свободный можно присоединить, включённый — сразу перевести в другой регион.</span></div>
           <div id="territorySummary" class="note"></div>
           <div class="found"><label class="note">Найти район: <input id="territorySearch" type="search" placeholder="номер или город" aria-label="Найти район или город"></label><button type="button" id="territoryPrev">Назад</button><button type="button" id="territoryNext">Дальше</button><span id="territoryPageLabel" class="note"></span></div>
-          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Район</th><th class="l">Регион</th><th class="l">Районный центр</th><th>Статус</th><th>Содержание/год</th><th></th></tr></thead><tbody id="territoryBody"></tbody></table></div></details>
+          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Район</th><th class="l">Регион</th><th class="l">Районный центр</th><th>Статус</th><th>Содержание/год</th></tr></thead><tbody id="territoryBody"></tbody></table></div></details>
         <details class="fold" open><summary>Регионы страны</summary>
-          <p class="note">Регион объединяет районы. Переназначьте район в таблице выше; регион из одного района с городом считается городом-регионом.</p>
+          <p class="note">Регион объединяет районы. Чтобы перенести район, нажмите его на карте и выберите регион; регион из одного района с городом считается городом-регионом.</p>
           <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Регион</th><th class="l">Центр региона</th><th>Районов</th><th>Городов</th><th>Жители</th><th>Площадь, км²</th><th></th></tr></thead><tbody id="dbody"></tbody></table></div></details>
         <details class="fold" open id="zoneBox"><summary>Зоны влияния центров</summary>
           <p class="note">Складываются сами по главным потокам. Город подчиняется тому соседу, к которому у него самая сильная связь, если сосед крупнее или это центр его области. На карте их показывает слой «Зоны влияния».</p>
@@ -183,7 +183,7 @@
     <p>Это игрушка. Коэффициенты подобраны на глаз и ни на каких данных не откалиброваны.</p>
     <ul>
       <li><b>Время в пути</b> считается по общей сети автодорог и железных дорог как кратчайший путь, с 10 минутами на начало и конец поездки, так что путь через промежуточный город тоже работает. Без дороги ездить можно со скоростью 15 км/ч. Автодорога даёт скорость из ползунка, скоростная в 1,6 раза больше, железная дорога 90 км/ч, скоростная 150 км/ч. До соседних регионов по умолчанию ведёт федеральная сеть со средней скоростью 40 км/ч. Внутри города от 8 до 18 минут в зависимости от размера, метро сокращает это время до 35% пропорционально охвату застройки станциями в радиусе 900 м. Линии метро рисуются вручную по станциям, у каждой свой цвет.</li>
-      <li><b>Аэропорты.</b> Полёт занимает 75 минут на дорогу в аэропорт и досмотр плюс время в воздухе. ВПП 1800 м принимает рейсы в соседние области, ВПП 3000 м ещё и в столицу. Каждый терминал пропускает 1 млн пассажиров в год, спрос равен 1,5 поездки на жителя в зоне часа езды. При перегрузке добавляется задержка. Жители других городов летают через ближайший аэропорт.</li>
+      <li><b>Аэропорты.</b> Годовой поток ограничен спросом, числом рейсов и ёмкостью аэропорта. Ёмкость растёт с уровнями: 100 тыс., 500 тыс., 1 млн, 3 млн, 5 млн, 10 млн, 20 млн, 50 млн, 100 млн и 150 млн пассажиров в год. При перегрузке добавляется задержка. Название и трёхбуквенный код аэропорта задаются в карточке города; диспетчерский режим показывает именно их.</li>
       <li><b>Фирмы.</b> По каждой отрасли есть целевая занятость, к которой число фирм подтягивается на 15% в год. Промышленность зависит от размера города, доступа к рынку (включая соседние регионы) и индустриальных парков. Добыча требует освоенного месторождения в пределах 18 км. Сельское хозяйство и лес зависят от доли чернозёма и леса вокруг. IT растёт при вузах и технопарках, туризм при музеях, природе и дальнем аэропорте, управление в основном в столице. Услуги пропорциональны населению.</li>
       <li><b>Услуги как ёмкость.</b> Каждая больница обслуживает 60 тыс. человек, каждый вуз 120 тыс. Сначала обслуживаются свои жители (городские и сельские), а свободные места достаются соседям в пределах полутора часов пути, ближним в первую очередь. Поэтому одна больница в городе на 300 тыс. закрывает ровно 20% потребности.</li>
       <li><b>Привлекательность</b> складывается из доступа к рабочим местам, доступа к населению, обеспеченности медициной и образованием, доступа к музеям и природы рядом, минус цена жилья.</li>

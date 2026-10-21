@@ -41,7 +41,7 @@ import {
   placeDeposits,
   riverDist,
 } from "./terrain";
-import { $, clamp, fmtPop, mulberry32 } from "./util";
+import { $, clamp, fmtN, fmtPop, mulberry32 } from "./util";
 import { makeRuralSites, ruralTarget } from "./villages";
 import { isIceAt, makePlanet, makeWorld2, seaD, worldText } from "./worldgen";
 
@@ -123,6 +123,82 @@ export function linkSpeed(r) {
 export const AIR_MAX_FREQ = 360,
   AIR_SEATS = 150,
   AIR_DAYS_MONTH = 365 / 12;
+export const AIRPORT_CAPACITY = [
+    0, 100000, 500000, 1000000, 3000000, 5000000, 10000000, 20000000, 50000000, 100000000,
+    150000000,
+  ],
+  AIRPORT_LEVEL_COST = [0, 5, 8, 12, 18, 24, 32, 42, 55, 70, 90];
+function airportCapacity(c) {
+  return AIRPORT_CAPACITY[clamp(Math.round((c && c.airLevel) || 0), 0, 10)] || 0;
+}
+export function airportLevelText(level) {
+  const cap = AIRPORT_CAPACITY[clamp(level, 0, 10)] || 0;
+  return cap >= 1000000 ? fmtN(cap / 1000000) + " млн" : "" + fmtN(cap / 1000) + " тыс.";
+}
+export function airportDefaultCode(name, index, reserved?) {
+  const upper = String(name || "").toLocaleUpperCase("ru"),
+    special = /МОСКВ|MOSCOW/.test(upper)
+      ? "SVO"
+      : /САНКТ|ПЕТЕРБУРГ|PETERSBURG/.test(upper)
+        ? "LED"
+        : "";
+  const table = {
+    А: "A",
+    Б: "B",
+    В: "V",
+    Г: "G",
+    Д: "D",
+    Е: "E",
+    Ё: "E",
+    Ж: "ZH",
+    З: "Z",
+    И: "I",
+    Й: "Y",
+    К: "K",
+    Л: "L",
+    М: "M",
+    Н: "N",
+    О: "O",
+    П: "P",
+    Р: "R",
+    С: "S",
+    Т: "T",
+    У: "U",
+    Ф: "F",
+    Х: "KH",
+    Ц: "C",
+    Ч: "CH",
+    Ш: "SH",
+    Щ: "SH",
+    Ъ: "",
+    Ы: "Y",
+    Ь: "",
+    Э: "E",
+    Ю: "YU",
+    Я: "YA",
+  };
+  let base =
+    special ||
+    upper
+      .replace(/[А-ЯЁ]/g, (ch) => table[ch] || "")
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 3)
+      .padEnd(3, "X");
+  const used =
+    reserved ||
+    new Set(
+      ((S && S.cities) || [])
+        .filter((c) => c.air && c.i !== index)
+        .map((c) => String(c.airportCode || "").toUpperCase()),
+    );
+  if (!used.has(base)) return base;
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for (let n = 0; n < letters.length ** 3; n++) {
+    const code = letters[n % 26] + letters[((n / 26) | 0) % 26] + letters[((n / 676) | 0) % 26];
+    if (!used.has(code)) return code;
+  }
+  return "AIR";
+}
 export function airRouteCost(a, b) {
   return 0.08 + dist(S.cities[a], S.cities[b]) * 0.0001;
 }
@@ -140,7 +216,7 @@ export function airRouteStats(r) {
   const fpm = flightsPerMonth(r),
     daily = fpm / AIR_DAYS_MONTH,
     km = dist(a, b),
-    capacity = Math.min(fpm * 12 * AIR_SEATS, (a.term || 1) * 1e6, (b.term || 1) * 1e6),
+    capacity = Math.min(fpm * 12 * AIR_SEATS, airportCapacity(a), airportCapacity(b)),
     service = 0.8 + 0.2 * Math.sqrt(clamp(fpm / 30, 0, 1)),
     demand =
       0.16 *
@@ -259,9 +335,8 @@ function travelMatrix() {
       0,
     );
     a.paxDemand = 1.5 * dem + routePax;
-    a.paxLoad = a.paxDemand / (a.term * 1e6);
+    a.paxLoad = a.paxDemand / Math.max(1, airportCapacity(a));
     S.ext.forEach((e) => {
-      if (e.big && !a.runway) return;
       const ft = 75 + (60 * dist(a, e)) / 550 + 60 * Math.max(0, a.paxLoad - 1),
         ie = n + e.k;
       for (let i = 0; i < n; i++) {
@@ -295,12 +370,12 @@ export function targets(c) {
     wood: c.forestSh * 500 + ((ej as any).wood || 0),
     it:
       (((c.uni ? 0.025 * P_ * (1 + 0.5 * Math.log(c.uni)) : 0.003 * P_) * aggF + 2500 * c.tech) *
-        (c.runway ? 1.2 : 1) +
+        (c.airLevel >= 4 ? 1.2 : 1) +
         ((ej as any).it || 0) +
         150 * (c.biz || 0)) *
       (c.sci ? 1.6 : 1),
     tour:
-      tourBase * (c.runway ? 1.4 : c.air ? 1.15 : 1) +
+      tourBase * (c.airLevel >= 4 ? 1.4 : c.air ? 1.15 : 1) +
       2500 * (c.gmus || 0) +
       ((ej as any).tour || 0),
     gov:
@@ -309,7 +384,11 @@ export function targets(c) {
       (c.hq ? 4000 : 0) +
       90 * (c.biz || 0) +
       0.012 * (c.dPop && !c.govc ? c.dPop : 0),
-    serv: 0.28 * P_ + (c.air ? 150 * c.term : 0) + 360 * (c.biz || 0) + 300 * (c.station || 0),
+    serv:
+      0.28 * P_ +
+      (c.air ? 150 * Math.sqrt(c.airLevel || 0) : 0) +
+      360 * (c.biz || 0) +
+      300 * (c.station || 0),
   };
 }
 /* services: each facility serves a fixed number of people; own residents first, spare capacity goes to neighbours within reach */
@@ -534,7 +613,10 @@ export function stepMonth() {
   const inflow = P.inflow * 1000 * MONTH,
     we = cs.map(
       (c, j) =>
-        c.A * Math.pow(c.P + vac[j], 0.9) * (c.runway ? 1.5 : 1) * (1 + 0.3 * (c.gmus || 0)),
+        c.A *
+        Math.pow(c.P + vac[j], 0.9) *
+        (c.airLevel >= 4 ? 1.35 : c.air ? 1.15 : 1) *
+        (1 + 0.3 * (c.gmus || 0)),
     ),
     ws = we.reduce((a, b) => a + b, 0),
     natMonth = monthRate(P.nat / 1000),
@@ -665,7 +747,7 @@ export function stepMonth() {
     if (c.health > 0.9) c.flags.hl = 0;
     if (c.air && c.paxLoad > 1.1 && !c.flags.pax) {
       c.flags.pax = 1;
-      logEv("Аэропорт города " + c.name + " перегружен, нужен терминал");
+      logEv("Аэропорт города " + c.name + " перегружен, увеличьте его пропускную способность");
     }
     if (c.paxLoad < 0.95) c.flags.pax = 0;
   });
@@ -708,7 +790,7 @@ export function init(seed, opts?) {
     tg: opts.tg || 2,
     planet: !!opts.planet,
     worldVersion: opts.worldVersion === 1 ? 1 : 2,
-    adminMapVersion: opts.adminMapVersion === 1 ? 1 : 2,
+    adminMapVersion: Number.isFinite(+opts.adminMapVersion) ? +opts.adminMapVersion : 3,
     cultureId,
     continentCount: opts.continentCount || 5,
     continentNameStyle: opts.continentNameStyle || "geographic",

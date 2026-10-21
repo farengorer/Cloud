@@ -27,9 +27,12 @@ import { countryAt, districtArea, districtRecordAt } from "./districts";
 import { render, roadClass } from "./draw";
 import { PLANT, plantMW } from "./energy";
 import {
+  AIRPORT_LEVEL_COST,
   AIR_DAYS_MONTH,
   MAX_BRIDGE,
   airRouteCost,
+  airportDefaultCode,
+  airportLevelText,
   bridgeSpan,
   byKey,
   evaluate,
@@ -60,6 +63,7 @@ export function costOf(c, k) {
   if (k === "station") return [1.5, 1.5, 3, 6, 10, 10][c.station || 0];
   if (k === "seaPortUpgrade") return 2 + 2 * (portLevel(c, "sea") || 1);
   if (k === "riverPortUpgrade") return 1.5 + 1.25 * (portLevel(c, "river") || 1);
+  if (k === "airUpgrade") return AIRPORT_LEVEL_COST[Math.min(10, (c.airLevel || 0) + 1)] || 0;
   return ACT[k].cost;
 }
 export function capIdx() {
@@ -108,8 +112,7 @@ const ACTION_EXPENSE = {
   riverPortUpgrade: "ports",
   tech: "industry",
   air: "airportBuild",
-  runway: "airportBuild",
-  term: "airportBuild",
+  airUpgrade: "airportBuild",
   station: "railBuild",
   govc: "administration",
   hq: "administration",
@@ -139,10 +142,11 @@ export function linkCost(a, b, mode, upgrade, roadType?) {
   const cls = roadType || selectedRoadClass();
   return (upgrade ? 0.12 : 0.06 * (ROAD_COST_MULT[cls] || 1)) * linkKm(a, b) * 1.25 * scale;
 }
-export function buildLink(a, b, mode, roadType) {
+export function buildLink(a, b, mode, roadType, upgradeKind?) {
   let r = linkBetween(a, b, mode);
   if (r) {
-    r.fast = true;
+    if (upgradeKind === "class" && mode === "road") r.class = roadType;
+    else if (upgradeKind === "fast") r.fast = true;
     return;
   }
   S.roads.push({
@@ -191,8 +195,7 @@ function annualInfrastructureCosts() {
         (out.railMaintain || 0) + linkCost(r.a, r.b, "rail", false) * 0.035 * (r.fast ? 1.3 : 1);
   });
   S.cities.forEach((c) => {
-    if (c.air)
-      out.airOperations = (out.airOperations || 0) + 0.004 * (c.term || 1) + (c.runway ? 0.008 : 0);
+    if (c.air) out.airOperations = (out.airOperations || 0) + 0.004 * (c.airLevel || 1) + 0.008;
   });
   (S.airRoutes || []).forEach((r) => {
     const daily = flightsPerMonth(r) / AIR_DAYS_MONTH;
@@ -364,8 +367,8 @@ export function canAct(c, k) {
   if (k === "station" && c.station >= 5) return "высший уровень";
   if (k === "air" && c.air) return "уже есть";
   if (k === "air" && c.P < 20000) return "от 20 тыс. жителей";
-  if (k === "runway" && !c.air) return "сначала аэропорт";
-  if (k === "runway" && c.runway) return "ВПП уже 3000 м";
+  if (k === "airUpgrade" && !c.air) return "сначала аэропорт";
+  if (k === "airUpgrade" && (c.airLevel || 1) >= 10) return "максимальная пропускная способность";
   if (k === "seaPort" && portLevel(c, "sea")) return "уже построен";
   if (k === "seaPort" && !seaPortAccess(c.x, c.y).ok)
     return "побережье дальше " + SEA_PORT_REACH + " км";
@@ -384,7 +387,6 @@ export function canAct(c, k) {
     return "в области уже три";
   if (k === "lc" && S.roads.filter((r) => r.a === c.i || r.b === c.i).length < 2)
     return "нужны хотя бы две дороги или ж/д";
-  if (k === "term" && !c.air) return "сначала аэропорт";
   if (S.budget < costOf(c, k)) return "не хватает денег";
   return "";
 }
@@ -425,12 +427,17 @@ export function doAct(c, k) {
     msg = "открыта станция метро, всего " + stations(c);
   } else if (k === "air") {
     c.air = 1;
-    c.term = 1;
+    c.airLevel = 1;
+    c.airportName = "Аэропорт " + c.name;
+    c.airportCode = airportDefaultCode(c.name, c.i);
     placeRunway(c);
-    msg = "открыт аэропорт с ВПП 1800 м";
-  } else if (k === "runway") {
-    c.runway = 1;
-    msg = "ВПП удлинена до 3000 м, открыты рейсы в столицу";
+    msg = "открыт аэропорт · пропускная способность 100 тыс. пассажиров в год";
+  } else if (k === "airUpgrade") {
+    c.airLevel = (c.airLevel || 1) + 1;
+    msg =
+      "пропускная способность аэропорта повышена до " +
+      airportLevelText(c.airLevel) +
+      " пассажиров в год";
   } else if (k === "gmus") {
     c.gmus = 1;
     msg = "открыт великий музей, туристы поедут со всей страны";
@@ -486,9 +493,6 @@ export function doAct(c, k) {
   } else if (k === "station") {
     c.station++;
     msg = "железная дорога: теперь " + ST[c.station];
-  } else if (k === "term") {
-    c.term++;
-    msg = "открыт терминал, пропускная способность " + c.term + " млн пассажиров";
   }
   recomputeH(c);
   logEv("Город " + c.name + ": " + msg);

@@ -29,6 +29,7 @@ import "./views";
 import "./layers";
 import "./foreign";
 import "./app";
+import { setupDraw } from "./draw";
 import { setupControls } from "./controls";
 import { setupColorMode } from "./colorMode";
 import { setupVillages } from "./villages";
@@ -40,11 +41,15 @@ import { setupViews } from "./views";
 import { setupLayers } from "./layers";
 import { setupApp } from "./app";
 import { init, stepMonth } from "./model";
-import { found, canFound, foundCost } from "./actions";
-import { buildLink, doAct, canAct } from "./actions";
+import { found, canFound, foundCost, buildLink, doAct, canAct } from "./actions";
+import { claimDistrict, districtAt, openDistrictPopup } from "./districts";
+import { render } from "./draw";
+import { evaluate } from "./model";
+import { makeRuralSites } from "./villages";
 import { S } from "./state";
 
 // Подписка на события и первый запуск — в том же порядке, что в исходнике.
+setupDraw();
 setupControls();
 setupColorMode();
 setupVillages();
@@ -67,6 +72,12 @@ if (import.meta.env.DEV) {
     buildLink,
     doAct,
     canAct,
+    districtAt,
+    openDistrictPopup,
+    render,
+    claimDistrict,
+    makeRuralSites,
+    evaluate,
     S: () => S,
   };
 }

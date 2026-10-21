@@ -189,8 +189,9 @@ export function makeCity(o) {
     park: 0,
     tech: 0,
     air: 0,
-    runway: 0,
-    term: 0,
+    airLevel: 0,
+    airportName: "",
+    airportCode: "",
     seaPortLevel: 0,
     riverPortLevel: 0,
     port: 0,
@@ -630,7 +631,8 @@ function place(c, type, amount) {
         (hasM ? 1 + 4 * Math.exp(-c.stD[k] / 3) : 1) *
         (c.biz && c.bizD ? 1 + 3 * Math.exp(-c.bizD[k] / 4) : 1);
       if (t === EMPTY && NB[k] >= 1) {
-        ww = (1 + NBD[k]) * (1 + NBD[k]) * Math.exp(-d / 34) * (1 + 0.6 * Number(rd <= 2)) * sl * sb;
+        ww =
+          (1 + NBD[k]) * (1 + NBD[k]) * Math.exp(-d / 34) * (1 + 0.6 * Number(rd <= 2)) * sl * sb;
         g = CAP[HIGH];
       } else if ((t === IZHS || t === ABAND) && NBD[k] >= 2) {
         ww = 0.5 * (1 + NBD[k]) * (1 + NBD[k]) * Math.exp(-d / 34) * sb;

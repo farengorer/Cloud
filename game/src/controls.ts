@@ -5,11 +5,11 @@ import {
   addVertex,
   airlineClick,
   cargoRouteClick,
-  claimDistrictAt,
   districtAt,
   districtsInLandComponent,
   endPick,
   nodeAt,
+  openDistrictPopup,
   pickClick,
   roadClick,
 } from "./districts";
@@ -31,6 +31,7 @@ import { loadSave, placePark, saveGame } from "./saveload";
 import {
   APP_PREFS,
   DB,
+  LAYER,
   MP,
   S,
   TAB,
@@ -562,7 +563,7 @@ export function setupControls() {
       return;
     }
     if (claimMode) {
-      claimDistrictAt(m.x, m.y);
+      openDistrictPopup(m.x, m.y, e);
       return;
     }
     if (pmode) {
@@ -585,6 +586,11 @@ export function setupControls() {
       pickClick(m);
       return;
     }
+    if (S.planet && LAYER === "territory") {
+      openDistrictPopup(m.x, m.y, e);
+      return;
+    }
+    $("#territoryPopup").hidden = true;
     if (dEdit && dEdit.target === "region") {
       const r = RC.getBoundingClientRect();
       addVertex(m, 10 / ((r.width / RW) * V.z));

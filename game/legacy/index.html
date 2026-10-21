@@ -110,6 +110,16 @@ button.link{border:none;padding:2px 4px;font-size:13px;text-decoration:underline
 .check{display:inline-flex;gap:6px;align-items:center;font-size:13px;white-space:nowrap}
 .check input{accent-color:var(--accent);margin:0}
 .view{position:relative;flex:1;min-height:0;background:var(--c-ground);overflow:hidden}
+#territoryPopup{position:absolute;z-index:8;min-width:220px;max-width:min(330px,calc(100% - 20px));padding:12px;background:rgba(18,24,24,.96);border:1px solid var(--c-accent);border-radius:6px;box-shadow:0 8px 24px #0008;color:var(--c-ink)}
+#territoryPopup[hidden]{display:none}
+#territoryPopup b{display:block;margin-bottom:5px}
+#territoryPopup .note{display:block;margin:3px 0 9px}
+#territoryPopup select,#territoryPopup button{width:100%;margin-top:6px}
+.airport-identity{display:grid;grid-template-columns:minmax(0,1fr) 76px auto;gap:6px;align-items:end;margin:4px 0 10px}
+.airport-identity label{display:grid;gap:3px;font-size:11px;color:var(--ink-soft)}
+.airport-identity input{width:100%;min-width:0;padding:5px 6px;font-size:12px}
+.airport-identity button{padding:5px 8px}
+.airport-identity .note{grid-column:1/-1}
 .view canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .view canvas.resource-overlay{z-index:1;pointer-events:none}
 .view canvas.geo-name-overlay{z-index:1;pointer-events:none}
@@ -326,12 +336,13 @@ canvas#chart{display:block;width:100%;border:1px solid var(--rule);background:va
         </div>
         <label class="road-class-control" id="roadClassControl" hidden>Класс дороги
           <select id="roadClassSelect" aria-label="Класс строящейся дороги">
-            <option value="local">Местная · дешевле, медленнее</option><option value="regional" selected>Региональная · обычная</option><option value="national">Национальная · быстрее, дороже</option><option value="international">Международная · к соседу</option>
+            <option value="local">Местная · дешевле, медленнее</option><option value="regional" selected>Региональная · обычная</option><option value="national">Национальная · быстрее, дороже</option><option value="international">Международная · самый быстрый класс</option>
           </select>
         </label>
         <span data-lg="region" style="display:inline-flex;gap:12px;flex-wrap:wrap"><label class="check"><input type="checkbox" id="vilChk" checked> Сёла</label><label class="check"><input type="checkbox" id="flowChk" checked> Миграция</label><label class="check"><input type="checkbox" id="geoNamesChk" checked> Географические названия</label><label class="check"><input type="checkbox" id="resourcesChk" checked> Ресурсы</label></span>
       </div>
       <div class="view" id="view">
+        <div id="territoryPopup" hidden></div>
         <canvas id="region" aria-label="Карта планеты. Щелчок по городу открывает его карточку, двойной щелчок открывает план"></canvas>
         <canvas id="resourceOverlay" class="resource-overlay" aria-hidden="true"></canvas>
         <canvas id="geoNameOverlay" class="geo-name-overlay" aria-hidden="true"></canvas>
@@ -360,7 +371,7 @@ canvas#chart{display:block;width:100%;border:1px solid var(--rule);background:va
         </div>
         <div class="found"><button type="button" id="openPlan">Открыть план города</button></div>
         <div class="cstats" id="cstats"></div>
-        <details class="fold" open><summary>Авиасообщение</summary><div id="airRoutesBox"></div></details>
+        <details class="fold" open><summary>Авиасообщение</summary><div id="airportIdentity"></div><div id="airRoutesBox"></div></details>
         <details class="fold" open><summary>Строительство</summary><div class="acts" id="acts"></div>
           <div class="found" style="margin-top:6px"><button type="button" data-tool="biz" aria-pressed="false">Деловой центр на плане</button><span class="note" id="bizNote"></span></div></details>
         <details class="fold" open><summary>Метро</summary><div class="metro" id="metroBox"></div></details>
@@ -379,14 +390,13 @@ canvas#chart{display:block;width:100%;border:1px solid var(--rule);background:va
           </table>
         </div>
         <details class="fold" open><summary>Территория государства</summary>
-          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Присоединить район на карте</button>
-          <label class="note">В регион: <select id="territoryTargetRegion" aria-label="Регион для нового района"></select></label>
-          <span class="note">Свободные районы не входят в страну. После присоединения район требует ежегодного содержания; город можно основать только на своей территории.</span></div>
+          <div class="found"><button type="button" data-tool="claim" aria-pressed="false">Выбрать район на карте</button>
+          <span class="note">В режиме «Территория» нажмите район: свободный можно присоединить, включённый — сразу перевести в другой регион.</span></div>
           <div id="territorySummary" class="note"></div>
           <div class="found"><label class="note">Найти район: <input id="territorySearch" type="search" placeholder="номер или город" aria-label="Найти район или город"></label><button type="button" id="territoryPrev">Назад</button><button type="button" id="territoryNext">Дальше</button><span id="territoryPageLabel" class="note"></span></div>
-          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Район</th><th class="l">Регион</th><th class="l">Районный центр</th><th>Статус</th><th>Содержание/год</th><th></th></tr></thead><tbody id="territoryBody"></tbody></table></div></details>
+          <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Район</th><th class="l">Регион</th><th class="l">Районный центр</th><th>Статус</th><th>Содержание/год</th></tr></thead><tbody id="territoryBody"></tbody></table></div></details>
         <details class="fold" open><summary>Регионы страны</summary>
-          <p class="note">Регион объединяет районы. Переназначьте район в таблице выше; регион из одного района с городом считается городом-регионом.</p>
+          <p class="note">Регион объединяет районы. Чтобы перенести район, нажмите его на карте и выберите регион; регион из одного района с городом считается городом-регионом.</p>
           <div class="tablewrap"><table class="dt"><thead><tr><th class="l">Регион</th><th class="l">Центр региона</th><th>Районов</th><th>Городов</th><th>Жители</th><th>Площадь, км²</th><th></th></tr></thead><tbody id="dbody"></tbody></table></div></details>
         <details class="fold" open id="zoneBox"><summary>Зоны влияния центров</summary>
           <p class="note">Складываются сами по главным потокам. Город подчиняется тому соседу, к которому у него самая сильная связь, если сосед крупнее или это центр его области. На карте их показывает слой «Зоны влияния».</p>
@@ -422,7 +432,7 @@ canvas#chart{display:block;width:100%;border:1px solid var(--rule);background:va
     <p>Это игрушка. Коэффициенты подобраны на глаз и ни на каких данных не откалиброваны.</p>
     <ul>
       <li><b>Время в пути</b> считается по общей сети автодорог и железных дорог как кратчайший путь, с 10 минутами на начало и конец поездки, так что путь через промежуточный город тоже работает. Без дороги ездить можно со скоростью 15 км/ч. Автодорога даёт скорость из ползунка, скоростная в 1,6 раза больше, железная дорога 90 км/ч, скоростная 150 км/ч. До соседних регионов по умолчанию ведёт федеральная сеть со средней скоростью 40 км/ч. Внутри города от 8 до 18 минут в зависимости от размера, метро сокращает это время до 35% пропорционально охвату застройки станциями в радиусе 900 м. Линии метро рисуются вручную по станциям, у каждой свой цвет.</li>
-      <li><b>Аэропорты.</b> Полёт занимает 75 минут на дорогу в аэропорт и досмотр плюс время в воздухе. ВПП 1800 м принимает рейсы в соседние области, ВПП 3000 м ещё и в столицу. Каждый терминал пропускает 1 млн пассажиров в год, спрос равен 1,5 поездки на жителя в зоне часа езды. При перегрузке добавляется задержка. Жители других городов летают через ближайший аэропорт.</li>
+      <li><b>Аэропорты.</b> Годовой поток ограничен спросом, числом рейсов и ёмкостью аэропорта. Ёмкость растёт с уровнями: 100 тыс., 500 тыс., 1 млн, 3 млн, 5 млн, 10 млн, 20 млн, 50 млн, 100 млн и 150 млн пассажиров в год. При перегрузке добавляется задержка. Название и трёхбуквенный код аэропорта задаются в карточке города; диспетчерский режим показывает именно их.</li>
       <li><b>Фирмы.</b> По каждой отрасли есть целевая занятость, к которой число фирм подтягивается на 15% в год. Промышленность зависит от размера города, доступа к рынку (включая соседние регионы) и индустриальных парков. Добыча требует освоенного месторождения в пределах 18 км. Сельское хозяйство и лес зависят от доли чернозёма и леса вокруг. IT растёт при вузах и технопарках, туризм при музеях, природе и дальнем аэропорте, управление в основном в столице. Услуги пропорциональны населению.</li>
       <li><b>Услуги как ёмкость.</b> Каждая больница обслуживает 60 тыс. человек, каждый вуз 120 тыс. Сначала обслуживаются свои жители (городские и сельские), а свободные места достаются соседям в пределах полутора часов пути, ближним в первую очередь. Поэтому одна больница в городе на 300 тыс. закрывает ровно 20% потребности.</li>
       <li><b>Привлекательность</b> складывается из доступа к рабочим местам, доступа к населению, обеспеченности медициной и образованием, доступа к музеям и природы рядом, минус цена жилья.</li>
@@ -533,9 +543,8 @@ const ACT={
   riverPort:{t:"Речной порт",d:"речные перевозки · уровень I",cost:3},
   riverPortUpgrade:{t:"Расширить речной порт",d:"увеличить грузооборот",cost:2.5},
   tech:{t:"Технопарк",d:"+2500 мест в IT",cost:6},
-  air:{t:"Аэропорт",d:"ВПП 1800 м, рейсы в соседние области",cost:5},
-  runway:{t:"Удлинить ВПП",d:"3000 м, рейсы в столицу",cost:4},
-  term:{t:"Терминал",d:"+1 млн пассажиров в год",cost:2},
+  air:{t:"Аэропорт",d:"пропускная способность 100 тыс. пассажиров в год",cost:5},
+  airUpgrade:{t:"Увеличить пропускную способность аэропорта",d:"повышение уровня аэропорта",cost:8},
   station:{t:"Вокзал",d:"",cost:1.5},
   govc:{t:"Правительство области",d:"административный центр, +2500 мест в управлении",cost:10,unique:1},
   hq:{t:"Штаб военного округа",d:"+4000 мест в управлении",cost:8,unique:1},
@@ -545,7 +554,7 @@ const ACT={
 };
 const UNI=["нет","институт","университет","классический университет","исследовательский университет","национальный исследовательский университет"];
 const ST=["нет","станция","вокзал","узловой вокзал","железнодорожный узел","центральный транспортно-пересадочный узел"];
-function costOf(c,k){if(k==="uni")return 3*((c.uni||0)+1);if(k==="station")return [1.5,1.5,3,6,10,10][c.station||0];if(k==="seaPortUpgrade")return 2+2*(portLevel(c,"sea")||1);if(k==="riverPortUpgrade")return 1.5+1.25*(portLevel(c,"river")||1);return ACT[k].cost;}
+function costOf(c,k){if(k==="uni")return 3*((c.uni||0)+1);if(k==="station")return [1.5,1.5,3,6,10,10][c.station||0];if(k==="seaPortUpgrade")return 2+2*(portLevel(c,"sea")||1);if(k==="riverPortUpgrade")return 1.5+1.25*(portLevel(c,"river")||1);if(k==="airUpgrade")return AIRPORT_LEVEL_COST[Math.min(10,(c.airLevel||0)+1)]||0;return ACT[k].cost;}
 function capIdx(){const k=S.cities.findIndex(c=>c.govc);return k<0?0:k;}
 function stPen(o){return o.ext?0:[25,15,10,6,3,1][o.station||1];}
 const PDEF=[
@@ -738,7 +747,7 @@ function makeCity(o){
   const c={i:S.cities.length,name:o.name,x:o.x,y:o.y,P:o.pop,J:0,H:0,founded:S.year,grace:o.grace?S.year+15:0,
     grid:new Uint8Array(G*G),forest:new Uint8Array(G*G),elev:new Float32Array(G*G),slope:new Float32Array(G*G),
     roadD:new Uint8Array(G*G),roadMask:new Uint8Array(G*G),stD:new Uint8Array(G*G).fill(255),roads:[],rails:[],metro:[],districts:[],metroCov:0,
-     hosp:0,uni:0,mus:0,park:0,tech:0,air:0,runway:0,term:0,seaPortLevel:0,riverPortLevel:0,port:0,rw:null,paxLoad:0,paxDemand:0,ent:[],
+     hosp:0,uni:0,mus:0,park:0,tech:0,air:0,airLevel:0,airportName:"",airportCode:"",seaPortLevel:0,riverPortLevel:0,port:0,rw:null,paxLoad:0,paxDemand:0,ent:[],
     firms:{},jobs:{},carryH:0,carryI:0,carryA:0,hist:[o.pop],lastBuild:0,flags:{},
     R:0,vsites:[],cx:G>>1,cy:G>>1,o:0.95,price:1,A:1,Arel:1,area:0,aband:0,builtCells:0,health:1,edu:0,cult:0,spec:"",MAr:1};
   const rd=riverDist(o.x,o.y,1),sh=areaShares(o.x,o.y);
@@ -871,10 +880,14 @@ function roadWaterError(a,b){const A=byKey(a),B=byKey(b);const x1=A.ext?A.gx:A.x
 function linkSpeed(r){if(r.mode==="rail")return r.fast?150:90;const cls=roadClass(r),factor={local:0.72,regional:1,national:1.28,international:1.42}[cls]||1;return P.speed*factor*(r.fast?1.6:1);}
 let TT=[];
 const AIR_MAX_FREQ=360,AIR_SEATS=150,AIR_DAYS_MONTH=365/12;
+const AIRPORT_CAPACITY=[0,100000,500000,1000000,3000000,5000000,10000000,20000000,50000000,100000000,150000000],AIRPORT_LEVEL_COST=[0,5,8,12,18,24,32,42,55,70,90];
+function airportCapacity(c){return AIRPORT_CAPACITY[clamp(Math.round(c&&c.airLevel||0),0,10)]||0;}
+function airportLevelText(level){const cap=AIRPORT_CAPACITY[clamp(level,0,10)]||0;return cap>=1000000?fmtN(cap/1000000)+" млн":""+fmtN(cap/1000)+" тыс.";}
+function airportDefaultCode(name,index,reserved){const upper=String(name||"").toLocaleUpperCase("ru"),special=/МОСКВ|MOSCOW/.test(upper)?"SVO":/САНКТ|ПЕТЕРБУРГ|PETERSBURG/.test(upper)?"LED":"";const table={А:"A",Б:"B",В:"V",Г:"G",Д:"D",Е:"E",Ё:"E",Ж:"ZH",З:"Z",И:"I",Й:"Y",К:"K",Л:"L",М:"M",Н:"N",О:"O",П:"P",Р:"R",С:"S",Т:"T",У:"U",Ф:"F",Х:"KH",Ц:"C",Ч:"CH",Ш:"SH",Щ:"SH",Ъ:"",Ы:"Y",Ь:"",Э:"E",Ю:"YU",Я:"YA"};let base=special||upper.replace(/[А-ЯЁ]/g,ch=>table[ch]||"").replace(/[^A-Z0-9]/g,"").slice(0,3).padEnd(3,"X");const used=reserved||new Set((S&&S.cities||[]).filter(c=>c.air&&c.i!==index).map(c=>String(c.airportCode||"").toUpperCase()));if(!used.has(base))return base;const letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ";for(let n=0;n<letters.length**3;n++){const code=letters[n%26]+letters[(n/26|0)%26]+letters[(n/676|0)%26];if(!used.has(code))return code;}return "AIR";}
 function airRouteCost(a,b){return 0.08+dist(S.cities[a],S.cities[b])*0.0001;}
 function flightsPerMonth(r){const raw=r.fpm!=null?r.fpm:(Number(r.freq)||1)*AIR_DAYS_MONTH;return clamp(Math.round(raw),1,AIR_MAX_FREQ);}
 function airFreqCost(r){return (0.025+dist(S.cities[r.a],S.cities[r.b])*0.000025)/AIR_DAYS_MONTH;}
-function airRouteStats(r){const a=S.cities[r.a],b=S.cities[r.b];if(!a||!b)return null;const fpm=flightsPerMonth(r),daily=fpm/AIR_DAYS_MONTH,km=dist(a,b),capacity=Math.min(fpm*12*AIR_SEATS,(a.term||1)*1e6,(b.term||1)*1e6),service=0.8+0.2*Math.sqrt(clamp(fpm/30,0,1)),demand=0.16*Math.sqrt(Math.max(0,a.P+a.R)*Math.max(0,b.P+b.R))*Math.exp(-km/3200)*service,pax=Math.min(demand,capacity);return {fpm,flightsYear:fpm*12,km,capacity,demand,pax,load:pax/Math.max(1,capacity),time:75+60*km/700+720/Math.max(0.05,daily)+120*Math.max(0,demand/Math.max(1,capacity)-1)};}
+function airRouteStats(r){const a=S.cities[r.a],b=S.cities[r.b];if(!a||!b)return null;const fpm=flightsPerMonth(r),daily=fpm/AIR_DAYS_MONTH,km=dist(a,b),capacity=Math.min(fpm*12*AIR_SEATS,airportCapacity(a),airportCapacity(b)),service=0.8+0.2*Math.sqrt(clamp(fpm/30,0,1)),demand=0.16*Math.sqrt(Math.max(0,a.P+a.R)*Math.max(0,b.P+b.R))*Math.exp(-km/3200)*service,pax=Math.min(demand,capacity);return {fpm,flightsYear:fpm*12,km,capacity,demand,pax,load:pax/Math.max(1,capacity),time:75+60*km/700+720/Math.max(0.05,daily)+120*Math.max(0,demand/Math.max(1,capacity)-1)};}
 function travelMatrix(){const cs=S.cities,n=cs.length,N=n+S.ext.length,nd=nodes();TT=[];
   for(let i=0;i<N;i++){TT.push(new Array(N));for(let j=0;j<N;j++){
     if(i===j){TT[i][j]=0;continue;}const a=nd[i],b=nd[j];
@@ -890,16 +903,16 @@ function travelMatrix(){const cs=S.cities,n=cs.length,N=n+S.ext.length,nd=nodes(
   for(let k=0;k<N;k++)for(let i=0;i<N;i++)for(let j=0;j<N;j++){const v=TT[i][k]+TT[k][j];if(v<TT[i][j])TT[i][j]=v;}
   for(let i=0;i<N;i++)for(let j=0;j<N;j++){if(i===j)TT[i][j]=i<n?(8+4*Math.sqrt(cs[i].P/1e5))*(1-0.35*cs[i].metroCov):30;else TT[i][j]+=10;}
   // air: flights from airports to neighbouring regions, used by any city via its fastest way to the airport
-  cs.forEach(a=>{if(!a.air)return;let dem=0;for(let j=0;j<n;j++)dem+=cs[j].P*Math.exp(-TT[j][a.i]/60);const routePax=(S.airRoutes||[]).reduce((sum,r)=>r.a===a.i||r.b===a.i?sum+(airRouteStats(r)?.pax||0):sum,0);a.paxDemand=1.5*dem+routePax;a.paxLoad=a.paxDemand/(a.term*1e6);
-    S.ext.forEach(e=>{if(e.big&&!a.runway)return;const ft=75+60*dist(a,e)/550+60*Math.max(0,a.paxLoad-1),ie=n+e.k;
+  cs.forEach(a=>{if(!a.air)return;let dem=0;for(let j=0;j<n;j++)dem+=cs[j].P*Math.exp(-TT[j][a.i]/60);const routePax=(S.airRoutes||[]).reduce((sum,r)=>r.a===a.i||r.b===a.i?sum+(airRouteStats(r)?.pax||0):sum,0);a.paxDemand=1.5*dem+routePax;a.paxLoad=a.paxDemand/Math.max(1,airportCapacity(a));
+    S.ext.forEach(e=>{const ft=75+60*dist(a,e)/550+60*Math.max(0,a.paxLoad-1),ie=n+e.k;
       for(let i=0;i<n;i++){const v=TT[i][a.i]+ft;if(v<TT[i][ie]){TT[i][ie]=v;TT[ie][i]=v;}}});});}
 
 function targets(c){const P_=c.P,aggF=Math.pow(Math.max(P_,2000)/1e5,0.08*P.agg),MAr=c.MAr||1,ej=entJobs(c);
   const tourBase=350*c.mus+400*Math.min(c.nature,1.2)+0.004*P_+parkTour(c)+(c.coast?600:0);
   return {ind:(0.035*P_*Math.pow(clamp(MAr,0.2,4),0.3)*aggF+2500*c.park)*(1+0.12*Math.min(c.lc||0,3)+(hasCargoPort(c)?0.1:0))+(ej.ind||0)+(c.sez?2000:0)+Object.keys(PLANT).reduce((a,k)=>a+PLANT[k].jobs*((c.pw&&c.pw[k])||0),0),log:0.008*P_+1500*(c.lc||0)+1200*(hasCargoPort(c)?1:0)+300*(c.station||0),
     mine:(ej.mine||0),agro:c.soilSh*900+0.006*P_+(ej.agro||0),wood:c.forestSh*500+(ej.wood||0),
-    it:(((c.uni?0.025*P_*(1+0.5*Math.log(c.uni)):0.003*P_)*aggF+2500*c.tech)*(c.runway?1.2:1)+(ej.it||0)+150*(c.biz||0))*(c.sci?1.6:1),
-    tour:tourBase*(c.runway?1.4:c.air?1.15:1)+2500*(c.gmus||0)+(ej.tour||0),gov:(c.govc?0.035:0.008)*P_+(c.govc?2500:0)+(c.hq?4000:0)+90*(c.biz||0)+0.012*(c.dPop&&!c.govc?c.dPop:0),serv:0.28*P_+(c.air?150*c.term:0)+360*(c.biz||0)+300*(c.station||0)};}
+    it:(((c.uni?0.025*P_*(1+0.5*Math.log(c.uni)):0.003*P_)*aggF+2500*c.tech)*(c.airLevel>=4?1.2:1)+(ej.it||0)+150*(c.biz||0))*(c.sci?1.6:1),
+    tour:tourBase*(c.airLevel>=4?1.4:c.air?1.15:1)+2500*(c.gmus||0)+(ej.tour||0),gov:(c.govc?0.035:0.008)*P_+(c.govc?2500:0)+(c.hq?4000:0)+90*(c.biz||0)+0.012*(c.dPop&&!c.govc?c.dPop:0),serv:0.28*P_+(c.air?150*Math.sqrt(c.airLevel||0):0)+360*(c.biz||0)+300*(c.station||0)};}
 
 /* services: each facility serves a fixed number of people; own residents first, spare capacity goes to neighbours within reach */
 function serviceCover(key,per,out,tau){const cs=S.cities,pop=cs.map(c=>c.P+c.R),cap=cs.map(c=>(c[key]||0)*per);
@@ -948,7 +961,7 @@ function stepMonth(){
   let extTot=0;
   S.ext.forEach(e=>{e.net=0;});
   if(S.planet){S.ext.forEach(e=>e.net=0);cs.forEach(c=>c.extNet=0);S.extNet=0;}else{for(let i=0;i<n;i++){const c=cs[i];let x=0;S.ext.forEach(e=>{const t=TT[i][n+e.k];const d=Math.tanh(Math.log(e.Arel/c.Arel));const v=0.02*c.P*Math.pow(e.P/1e6,0.25)*Math.exp(-t/400)*d*MONTH;x-=v;e.net+=v;});c.extNet=x;net[i]+=x;extTot+=x;}S.extNet=extTot;}
-  const inflow=P.inflow*1000*MONTH,we=cs.map((c,j)=>c.A*Math.pow(c.P+vac[j],0.9)*(c.runway?1.5:1)*(1+0.3*(c.gmus||0))),ws=we.reduce((a,b)=>a+b,0),natMonth=monthRate(P.nat/1000),ruralMonth=monthRate(0.04),firmMonth=monthRate(0.15);
+  const inflow=P.inflow*1000*MONTH,we=cs.map((c,j)=>c.A*Math.pow(c.P+vac[j],0.9)*(c.airLevel>=4?1.35:c.air?1.15:1)*(1+0.3*(c.gmus||0))),ws=we.reduce((a,b)=>a+b,0),natMonth=monthRate(P.nat/1000),ruralMonth=monthRate(0.04),firmMonth=monthRate(0.15);
   lastPairs=[];for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const f=F[i][j]-F[j][i];if(Math.abs(f)>1)lastPairs.push(f>0?{a:i,b:j,v:f}:{a:j,b:i,v:-f});}
   lastPairs.sort((x,y)=>y.v-x.v);
   let income=0;
@@ -975,7 +988,7 @@ function stepMonth(){
   if(S.en.imp>0.5&&!S.fl.imp){S.fl.imp=1;logEv("Своих станций не хватает, область покупает электроэнергию у соседей");}else if(S.en.imp<=0.1)S.fl.imp=0;
   cs.forEach(c=>{if(c.spec!==c.lastSpec){if(c.lastSpec&&c.spec)logEv("Город "+c.name+" стал "+(SPEC_INS[c.spec]||c.spec));c.lastSpec=c.spec;}
     if(c.health<0.7&&c.P>3000&&!c.flags.hl){c.flags.hl=1;logEv("В городе "+c.name+" не хватает больниц");}if(c.health>0.9)c.flags.hl=0;
-    if(c.air&&c.paxLoad>1.1&&!c.flags.pax){c.flags.pax=1;logEv("Аэропорт города "+c.name+" перегружен, нужен терминал");}if(c.paxLoad<0.95)c.flags.pax=0;});
+    if(c.air&&c.paxLoad>1.1&&!c.flags.pax){c.flags.pax=1;logEv("Аэропорт города "+c.name+" перегружен, увеличьте его пропускную способность");}if(c.paxLoad<0.95)c.flags.pax=0;});
   if(S.year>=YMAX)logEv("Конец столетия. Нажмите «Новая игра» для нового прогона");
 }
 function stepYear(){for(let m=0;m<12&&S.year<YMAX;m++)stepMonth();}
@@ -993,7 +1006,7 @@ function logEv(t){if(!S)return;S.log.unshift({y:S.year,t});if(S.log.length>120)S
 function init(seed,opts){opts=opts||{};acc=0;lastGameDate="";
   rng=mulberry32(seed);
   const cultureId=opts.cultureId||"RU",culture=cultureById(cultureId);
-  S={tg:opts.tg||2,planet:!!opts.planet,worldVersion:opts.worldVersion===1?1:2,adminMapVersion:opts.adminMapVersion===1?1:2,cultureId,continentCount:opts.continentCount||5,continentNameStyle:opts.continentNameStyle||"geographic",foreignCount:0,ruralPool:opts.ruralPool==null?(opts.planet?1e6:0):opts.ruralPool,ruralFlow:0,trade:{imports:0,exports:0,balance:0},fl:{},regionName:opts.regionName||"",year:opts.year||2026,monthIndex:0,cities:[],roads:[],airRoutes:[],cargoRoutes:[],regions:[],districts:[],districtById:null,parks:[],log:[],sel:0,seed,budget:12,income:0,budgetBook:{current:{year:opts.year||2026,income:{},expense:{}},last:null},extNet:0,names:(opts.planet?culture.cities.filter(n=>n!==opts.capName):NAMES.slice()),slot:opts.slot||0,
+  S={tg:opts.tg||2,planet:!!opts.planet,worldVersion:opts.worldVersion===1?1:2,adminMapVersion:Number.isFinite(+opts.adminMapVersion)?+opts.adminMapVersion:3,cultureId,continentCount:opts.continentCount||5,continentNameStyle:opts.continentNameStyle||"geographic",foreignCount:0,ruralPool:opts.ruralPool==null?(opts.planet?1e6:0):opts.ruralPool,ruralFlow:0,trade:{imports:0,exports:0,balance:0},fl:{},regionName:opts.regionName||"",year:opts.year||2026,monthIndex:0,cities:[],roads:[],airRoutes:[],cargoRoutes:[],regions:[],districts:[],districtById:null,parks:[],log:[],sel:0,seed,budget:12,income:0,budgetBook:{current:{year:opts.year||2026,income:{},expense:{}},last:null},extNet:0,names:(opts.planet?culture.cities.filter(n=>n!==opts.capName):NAMES.slice()),slot:opts.slot||0,
     prices:opts.prices?Object.assign({},opts.prices):basePrices(),out:zeroGoods(),use:zeroGoods()};S.prevPrices=S.prices;
   if(S.planet){P.inflow=0;P.pull=1;const inf=$("#p_inflow"),pull=$("#p_pull");if(inf){inf.value="0";$("#o_inflow").textContent="0 тыс./год";}if(pull){pull.value="1";$("#o_pull").textContent="×1,0";}}document.querySelectorAll(".param").forEach(el=>el.hidden=S.planet&&["inflow","pull"].includes(el.dataset.param));
   S.T=makeTerrain();if(S.tg>=2&&!S.planet)makeWorld2(S.T,seed);if(S.planet){makePlanet(S.T,seed,S.continentCount,S.continentNameStyle,S.worldVersion);makeAdminDistrictMap(seed,S.adminMapVersion);}placeDeposits();S.ext=[];
@@ -1012,19 +1025,19 @@ function financeBook(){if(!S.budgetBook||!S.budgetBook.current)S.budgetBook={cur
 function bookAmount(group,key,value){if(!(value>0))return;const b=financeBook().current[group];b[key]=(b[key]||0)+value;}
 function spend(v,category="construction"){if(S.budget<v)return false;S.budget-=v;bookAmount("expense",category,v);return true;}
 function refund(v,category="construction"){S.budget+=v;const e=financeBook().current.expense;e[category]=Math.max(0,(e[category]||0)-v);}
-const ACTION_EXPENSE={hosp:"health",uni:"education",mus:"culture",gmus:"culture",lc:"logistics",seaPort:"ports",seaPortUpgrade:"ports",riverPort:"ports",riverPortUpgrade:"ports",tech:"industry",air:"airportBuild",runway:"airportBuild",term:"airportBuild",station:"railBuild",govc:"administration",hq:"administration",sci:"research",sez:"businessDistrict",pl_tec:"energyBuild",pl_gres:"energyBuild",pl_ges:"energyBuild",pl_aes:"energyBuild",pl_wind:"energyBuild",pl_solar:"energyBuild"};
+const ACTION_EXPENSE={hosp:"health",uni:"education",mus:"culture",gmus:"culture",lc:"logistics",seaPort:"ports",seaPortUpgrade:"ports",riverPort:"ports",riverPortUpgrade:"ports",tech:"industry",air:"airportBuild",airUpgrade:"airportBuild",station:"railBuild",govc:"administration",hq:"administration",sci:"research",sez:"businessDistrict",pl_tec:"energyBuild",pl_gres:"energyBuild",pl_ges:"energyBuild",pl_aes:"energyBuild",pl_wind:"energyBuild",pl_solar:"energyBuild"};
 const ROAD_CLASS_LABELS={local:"местная",regional:"региональная",national:"национальная",international:"международная"},ROAD_COST_MULT={local:0.68,regional:1,national:1.55,international:2.35};
 function selectedRoadClass(){const el=$("#roadClassSelect");return el&&ROAD_CLASS_LABELS[el.value]?el.value:"regional";}
 function linkCost(a,b,mode,upgrade,roadType){const scale=S.planet?0.01:1;if(mode==="rail")return (upgrade?0.25:0.15)*linkKm(a,b)*1.25*scale;const cls=roadType||selectedRoadClass();return (upgrade?0.12:0.06*(ROAD_COST_MULT[cls]||1))*linkKm(a,b)*1.25*scale;}
-function buildLink(a,b,mode,roadType){let r=linkBetween(a,b,mode);
-  if(r){r.fast=true;return;}
+function buildLink(a,b,mode,roadType,upgradeKind){let r=linkBetween(a,b,mode);
+  if(r){if(upgradeKind==="class"&&mode==="road")r.class=roadType;else if(upgradeKind==="fast")r.fast=true;return;}
   S.roads.push({a,b,mode,fast:false,...(mode==="road"?{class:roadType||"regional"}:{})});const A=byKey(a),B=byKey(b);
   if(mode==="rail"){if(!A.ext&&!A.station){A.station=1;logEv("Город "+A.name+": открыта железнодорожная станция");}if(!B.ext&&!B.station){B.station=1;logEv("Город "+B.name+": открыта железнодорожная станция");}}
   const ax=A.ext?A.gx:A.x,ay=A.ext?A.gy:A.y,tx0=B.ext?B.gx:B.x,tx=S.planet?nearX(tx0,ax):tx0,ty=B.ext?B.gy:B.y,th=Math.atan2(ty-ay,tx-ax);
   if(mode==="road"){if(!A.ext)addGridRoad(A,th);if(!B.ext)addGridRoad(B,Math.atan2(ay-ty,ax-tx));}
   else{if(!A.ext)addGridRail(A,th);if(!B.ext)addGridRail(B,Math.atan2(ay-ty,ax-tx));}}
 function annualInfrastructureCosts(){const out={};S.roads.forEach(r=>{if(r.mode==="road"){const cls=roadClass(r),rate={local:.025,regional:.03,national:.036,international:.042}[cls]||.03,k="roadMaintain_"+cls;out[k]=(out[k]||0)+linkCost(r.a,r.b,"road",false,cls)*rate*(r.fast?1.35:1);}else out.railMaintain=(out.railMaintain||0)+linkCost(r.a,r.b,"rail",false)*.035*(r.fast?1.3:1);});
-  S.cities.forEach(c=>{if(c.air)out.airOperations=(out.airOperations||0)+0.004*(c.term||1)+(c.runway?0.008:0);});(S.airRoutes||[]).forEach(r=>{const daily=flightsPerMonth(r)/AIR_DAYS_MONTH;out.airOperations=(out.airOperations||0)+airRouteCost(r.a,r.b)*(.025+.004*daily);});
+  S.cities.forEach(c=>{if(c.air)out.airOperations=(out.airOperations||0)+0.004*(c.airLevel||1)+0.008;});(S.airRoutes||[]).forEach(r=>{const daily=flightsPerMonth(r)/AIR_DAYS_MONTH;out.airOperations=(out.airOperations||0)+airRouteCost(r.a,r.b)*(.025+.004*daily);});
   (S.cargoRoutes||[]).forEach(r=>{const st=cargoRouteStats(r);if(st)out.cargoOperations=(out.cargoOperations||0)+st.capacity*0.000000006;});const territoryCost=(S.districts||[]).reduce((n,d)=>n+(d.upkeep||districtArea(d.id)*0.000002),0);if(territoryCost)out.territory=territoryCost;if(S.en)out.energyGeneration=Math.max(0,Math.min(S.en.D||0,S.en.cap||0))*0.00055;return out;}
 const MONTH=1/12;
 function monthRate(rate){return rate<=-1?-1:Math.pow(1+rate,MONTH)-1;}
@@ -1063,8 +1076,8 @@ function canAct(c,k){const a=ACT[k];
   if(k==="station"&&c.station>=5)return "высший уровень";
   if(k==="air"&&c.air)return "уже есть";
   if(k==="air"&&c.P<20000)return "от 20 тыс. жителей";
-  if(k==="runway"&&!c.air)return "сначала аэропорт";
-  if(k==="runway"&&c.runway)return "ВПП уже 3000 м";
+  if(k==="airUpgrade"&&!c.air)return "сначала аэропорт";
+  if(k==="airUpgrade"&&(c.airLevel||1)>=10)return "максимальная пропускная способность";
   if(k==="seaPort"&&portLevel(c,"sea"))return "уже построен";
   if(k==="seaPort"&&!seaPortAccess(c.x,c.y).ok)return "побережье дальше "+SEA_PORT_REACH+" км";
   if(k==="seaPortUpgrade"&&!portLevel(c,"sea"))return "сначала морской порт";
@@ -1077,7 +1090,6 @@ function canAct(c,k){const a=ACT[k];
   if(k==="gmus"&&c.P<100000)return "от 100 тыс. жителей";
   if(k==="gmus"&&S.cities.reduce((a,o)=>a+(o.gmus||0),0)>=3)return "в области уже три";
   if(k==="lc"&&S.roads.filter(r=>r.a===c.i||r.b===c.i).length<2)return "нужны хотя бы две дороги или ж/д";
-  if(k==="term"&&!c.air)return "сначала аэропорт";
   if(S.budget<costOf(c,k))return "не хватает денег";return "";}
 function doAct(c,k){if(canAct(c,k))return;const a=ACT[k];spend(costOf(c,k),ACTION_EXPENSE[k]||"construction");let msg="";
   if(k==="hosp"){c.hosp++;msg="открыта больница, всего "+c.hosp;}
@@ -1088,8 +1100,8 @@ function doAct(c,k){if(canAct(c,k))return;const a=ACT[k];spend(costOf(c,k),ACTIO
   else if(k==="dep"){const d=nearDeposits(c).sort((p,q)=>Math.hypot(p.x-c.x,p.y-c.y)-Math.hypot(q.x-c.x,q.y-c.y))[0];d.dev=c.i;addIndustry(c,10);msg="начата добыча, "+d.t;}
   else if(k==="mline"){newLine(c);msg="открыта "+c.metro.length+"-я линия метро";}
   else if(k==="mext"){extendLine(c);msg="открыта станция метро, всего "+stations(c);}
-  else if(k==="air"){c.air=1;c.term=1;placeRunway(c);msg="открыт аэропорт с ВПП 1800 м";}
-  else if(k==="runway"){c.runway=1;msg="ВПП удлинена до 3000 м, открыты рейсы в столицу";}
+  else if(k==="air"){c.air=1;c.airLevel=1;c.airportName="Аэропорт "+c.name;c.airportCode=airportDefaultCode(c.name,c.i);placeRunway(c);msg="открыт аэропорт · пропускная способность 100 тыс. пассажиров в год";}
+  else if(k==="airUpgrade"){c.airLevel=(c.airLevel||1)+1;msg="пропускная способность аэропорта повышена до "+airportLevelText(c.airLevel)+" пассажиров в год";}
   else if(k==="gmus"){c.gmus=1;msg="открыт великий музей, туристы поедут со всей страны";}
   else if(k==="lc"){c.lc=(c.lc||0)+1;addIndustry(c,10);msg="открыт логистический комплекс, всего "+c.lc;}
   else if(k==="seaPort"){c.seaPortLevel=1;c.port=1;addIndustry(c,8);msg="открыт морской порт, грузооборот до "+fmtCargoTonnes(portCapacity(c,"sea"))+" в год";}
@@ -1100,7 +1112,6 @@ function doAct(c,k){if(canAct(c,k))return;const a=ACT[k];spend(costOf(c,k),ACTIO
   else if(k==="govc"){S.cities.forEach(o=>o.govc=0);c.govc=1;msg="сюда переехало правительство области";}
   else if(k==="hq"||k==="sci"||k==="sez"){c[k]=1;msg="размещено: "+a.t.toLowerCase();}
   else if(k==="station"){c.station++;msg="железная дорога: теперь "+ST[c.station];}
-  else if(k==="term"){c.term++;msg="открыт терминал, пропускная способность "+c.term+" млн пассажиров";}
   recomputeH(c);logEv("Город "+c.name+": "+msg);evaluate();render();}
 
 /* ---------- colors ---------- */
@@ -1226,8 +1237,8 @@ function placeLabels(ctx,s,w,h,OX,OY,extLabs,tier=mapScaleTier(),centers=distric
     placed.push(best);ctx.textAlign="center";ctx.textBaseline="alphabetic";ctx.fillStyle=rgb(C.ink);halo(ctx,o.e.name,best.x+ew/2,best.y+12);ctx.font="11px "+FONT.m;ctx.fillStyle=rgb(C["ink-soft"]);halo(ctx,fmtPop(o.e.P),best.x+ew/2,best.y+24);});
   const order=visible.slice().sort((a,b)=>(b.i===S.sel)-(a.i===S.sel)||b.P-a.P);
   ctx.textAlign="left";ctx.textBaseline="alphabetic";
-  order.forEach(c=>{const r=radius(c,s)+3,cx=c.x*s,cy=c.y*s,sub=(c.sats&&c.sats.length?"агломерация "+fmtPop(c.PA):fmtPop(c.P))+(cmode==="spec"?" · "+c.spec:"");
-    const fs=Math.round(clamp(11+2.3*Math.log10(Math.max(c.P,1000)/1000),11,19)),nm=c.P>=250000?c.name.toUpperCase():c.name,nf=(c.P>=50000?"700 ":"600 ")+fs+"px "+FONT.d;
+  order.forEach(c=>{const dispatch=LAYER==="airlinks",r=radius(c,s)+3,cx=c.x*s,cy=c.y*s,sub=dispatch?(c.airportName||("Аэропорт "+c.name)):((c.sats&&c.sats.length?"агломерация "+fmtPop(c.PA):fmtPop(c.P))+(cmode==="spec"?" · "+c.spec:""));
+    const fs=dispatch?13:Math.round(clamp(11+2.3*Math.log10(Math.max(c.P,1000)/1000),11,19)),nm=dispatch?(c.airportCode||airportDefaultCode(c.name,c.i)).toUpperCase():c.P>=250000?c.name.toUpperCase():c.name,nf=(dispatch||c.P>=50000?"700 ":"600 ")+fs+"px "+FONT.d;
     ctx.font=nf;const w1=ctx.measureText(nm).width;ctx.font="11px "+FONT.m;const w2=ctx.measureText(sub).width;const bw=Math.max(w1,w2)+4,bh=fs+14,d=r*0.72,hb=bh/2;
     const cands=[[cx+r,cy-hb],[cx-r-bw,cy-hb],[cx-bw/2,cy-r-bh],[cx-bw/2,cy+r],[cx+d,cy-d-bh],[cx+d,cy+d],[cx-d-bw,cy-d-bh],[cx-d-bw,cy+d],[cx+r+10,cy-hb],[cx-r-bw-10,cy-hb]];
     let pos=null;for(const q of cands){const b={x:q[0],y:q[1],w:bw,h:bh};if(!hit(b)){pos=b;break;}}
@@ -1293,7 +1304,7 @@ function drawRegion(){if(VIEW!=="region")return;
     const col=heat?C.paper:cmode==="spec"?specColor(c):(g>=0?mix(neutral,C.grow,0.25+0.75*t):mix(neutral,C.decline,0.25+0.75*t));
     ctx.fillStyle=dispatch?"#0FE1C2":rgb(col,V.z>2.5?0.55:0.92);ctx.strokeStyle=dispatch?"#B9FFF1":rgb(C.ink);ctx.lineWidth=c.govc?2:1.2;ctx.beginPath();ctx.arc(c.x*s,c.y*s,heat?Math.max(3,r*0.6):r,0,Math.PI*2);ctx.fill();ctx.stroke();
     if(i===S.sel){ctx.strokeStyle=rgb(C.accent);ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(c.x*s,c.y*s,r+4,0,Math.PI*2);ctx.stroke();}
-    if(c.air)plane(ctx,c.x*s-r*0.75,c.y*s-r*0.75,c.runway?6.5:5);
+    if(c.air)plane(ctx,c.x*s-r*0.75,c.y*s-r*0.75,5+Math.min(3,(c.airLevel||1)*0.2));
     if(c.pw&&(c.pw.gres||c.pw.ges||c.pw.aes)){const bx=c.x*s+r*0.8,by=c.y*s-r*0.9;ctx.save();ctx.fillStyle="#F2B705";ctx.strokeStyle=rgb(C.ink);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(bx+2,by-6);ctx.lineTo(bx-3,by+1);ctx.lineTo(bx,by+1);ctx.lineTo(bx-2,by+7);ctx.lineTo(bx+4,by-1);ctx.lineTo(bx+1,by-1);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
     if(c.station){const z=3+c.station,sx=c.x*s+r*0.55,sy=c.y*s+r*0.55;ctx.fillStyle=rgb(C["c-rail"]);ctx.fillRect(sx,sy,z*1.5,z);ctx.fillStyle=rgb(C.paper);ctx.fillRect(sx+1.2,sy+1.2,z*1.5-2.4,z-2.4);}});
   placeLabels(ctx,s,w,h,OX,OY,extBoxes,tier,centers);
@@ -1315,12 +1326,14 @@ function drawRegion(){if(VIEW!=="region")return;
 }
 
 const off=document.createElement("canvas");off.width=G;off.height=G;
-function drawAirRoutes(c){const box=$("#airRoutesBox");if(!box)return;const routes=(S.airRoutes||[]).map((r,i)=>({r,i,other:r.a===c.i?r.b:r.b===c.i?r.a:null})).filter(x=>x.other!=null);
+function drawAirportIdentity(c){const box=$("#airportIdentity");if(!box)return;if(!c.air){box.innerHTML="";box.dataset.sig="";return;}const sig=[c.i,c.airportName,c.airportCode,c.airLevel].join("|");if(box.dataset.sig===sig||box.contains(document.activeElement))return;box.dataset.sig=sig;box.innerHTML="<div class=\"airport-identity\"><label>Название аэропорта<input id=\"airportNameInput\" maxlength=\"40\" value=\""+esc(c.airportName||("Аэропорт "+c.name))+"\"></label><label>Код аэропорта<input id=\"airportCodeInput\" maxlength=\"3\" value=\""+esc(c.airportCode||airportDefaultCode(c.name,c.i))+"\" aria-label=\"Трёхбуквенный код аэропорта\"></label><button type=\"button\" data-airport-save>Сохранить</button><span class=\"note\" role=\"status\">Уровень "+(c.airLevel||1)+" · "+airportLevelText(c.airLevel||1)+" пассажиров в год · загрузка "+Math.round(c.paxLoad*100)+"%</span></div>";}
+$("#airportIdentity").addEventListener("click",e=>{if(!e.target.closest("[data-airport-save]"))return;const c=S.cities[S.sel],name=$("#airportNameInput").value.trim(),code=$("#airportCodeInput").value.trim().toUpperCase(),status=$("#airportIdentity [role=status]");if(!c||!c.air)return;if(!name){status.textContent="Введите название аэропорта.";return;}if(!/^[A-Z]{3}$/.test(code)){status.textContent="Код должен состоять ровно из трёх латинских букв.";return;}if(S.cities.some(o=>o!==c&&o.air&&o.airportCode===code)){status.textContent="Этот код уже занят другим аэропортом.";return;}c.airportName=name;c.airportCode=code;logEv("Аэропорт города "+c.name+" переименован: "+name+" ("+code+")");boxReset();evaluate();render();function boxReset(){ $("#airportIdentity").dataset.sig=""; }});
+function drawAirRoutes(c){const box=$("#airRoutesBox");if(!box)return;drawAirportIdentity(c);const routes=(S.airRoutes||[]).map((r,i)=>({r,i,other:r.a===c.i?r.b:r.b===c.i?r.a:null})).filter(x=>x.other!=null);
   let html="";if(!c.air)html="<p class=\"note\">В городе нет аэропорта. Откройте аэропорт в разделе «Строительство», затем соедините его с другим аэропортом.</p>";
   else if(!routes.length)html="<p class=\"note\">Авиамаршрутов пока нет. Задайте расписание в числе рейсов за месяц.</p><button type=\"button\" data-tool=\"airline\" aria-pressed=\"false\">Спроектировать авиалинию</button>";
   else html=routes.map(({r,i,other})=>{const st=airRouteStats(r),cst=airFreqCost(r),max=st.fpm>=AIR_MAX_FREQ;return "<div class=\"airroute\"><b>"+esc(S.cities[other].name)+" ↔ "+esc(c.name)+"</b><span class=\"note\">"+st.fpm+" "+plural(st.fpm,"рейс","рейса","рейсов")+" в месяц · перевезено "+fmtN(st.pax)+" из "+fmtN(st.demand)+" поездок спроса в год</span><div class=\"roadrow\"><button type=\"button\" data-airfreq=\""+i+"\" data-delta=\"-1\" aria-label=\"Снизить число рейсов в месяц\""+(st.fpm<=1?" disabled":"")+">−</button><button type=\"button\" data-airfreq=\""+i+"\" data-delta=\"1\""+(max||S.budget<cst?" disabled":"")+">+1 рейс в месяц · "+fmtM(cst)+"</button></div></div>";}).join("");
   if(c.air&&routes.length)html+="<button type=\"button\" data-tool=\"airline\" aria-pressed=\"false\">Добавить авиалинию</button>";
-  html+="<p class=\"note\">Спрос зависит от населения обоих городов, расстояния и частоты сообщения. Пассажиры в год ограничены спросом, числом мест и пропускной способностью терминалов.</p>";if(box.dataset.h!==html){box.innerHTML=html;box.dataset.h=html;}}
+  html+="<p class=\"note\">Спрос зависит от населения обоих городов, расстояния и частоты сообщения. Годовой поток ограничен спросом, числом рейсов и ёмкостью аэропортов.</p>";if(box.dataset.h!==html){box.innerHTML=html;box.dataset.h=html;}}
 function drawCargoRoutes(){const box=$("#cargoRoutesBody");if(!box)return;const routes=S.cargoRoutes||[],seaN=S.cities.filter(c=>portLevel(c,"sea")).length,riverN=S.cities.filter(c=>portLevel(c,"river")).length;let html="<p class=\"note\">Порты: морских "+seaN+", речных "+riverN+". Маршрут связывает два порта одного типа. Доступная грузоподъёмность распределяется между реальными излишками и потребностями городов.</p><div class=\"roadrow\"><button type=\"button\" data-tool=\"cargoSea\" aria-pressed=\"false\">Проложить морской маршрут</button><button type=\"button\" data-tool=\"cargoRiver\" aria-pressed=\"false\">Проложить речной маршрут</button></div>";if(!routes.length)html+="<p class=\"note\">Линий пока нет. Для морского маршрута нужны два морских порта, для речного — два порта на одном русле.</p>";else html+="<div class=\"tablewrap\"><table class=\"dt\"><thead><tr><th class=\"l\">Маршрут и товары</th><th>Длина</th><th>Перевезено/год</th><th>Стоимость груза</th><th></th></tr></thead><tbody>"+routes.map((r,i)=>{const a=S.cities[r.a],b=S.cities[r.b],st=cargoRouteStats(r),flows=r.flows||[],details=flows.length?flows.map(f=>esc(GOODS[f.good].t)+" · "+fmtCargoTonnes(f.tonnes)+" · "+esc(S.cities[f.from].name)+" → "+esc(S.cities[f.to].name)).join("<br>"):"<span class=\"note\">нет подходящего груза или спроса</span>";return "<tr><td class=\"l\">"+(r.type==="sea"?"Морской":"Речной")+" · "+esc(a.name)+" ↔ "+esc(b.name)+"<br>"+details+"</td><td>"+fmtN(st.km)+" км</td><td>"+fmtCargoTonnes(r.annualTonnes||0)+" из "+fmtCargoTonnes(st.capacity)+"</td><td>"+fmtM(r.annualValue||0)+"</td><td><button type=\"button\" data-cargorm=\""+i+"\" aria-label=\"Закрыть маршрут\">×</button></td></tr>";}).join("")+"</tbody></table></div>";const cap=totalCargoRouteCapacity();html+="<p class=\"note\">Пропускная способность всех маршрутов: "+fmtCargoTonnes(cap)+" в год. Выпуск и потребление городов пересчитываются каждый месяц; значения здесь показаны в годовом исчислении.</p>";if(box.dataset.h!==html){box.innerHTML=html;box.dataset.h=html;}}
 function drawCity(){
   if(mdraw&&mdraw.city!==planCity().i)finishMetro(true);if(dEdit&&dEdit.target==="city"&&dEdit.city!==S.sel){dEdit=null;toolButtons();}
@@ -1335,11 +1348,11 @@ function drawCity(){
   c.rails.forEach(p=>railLine(ctx,p[0][0]*s,p[0][1]*s,p[1][0]*s,p[1][1]*s,Math.max(2,s*0.5),false));
   if(c.station&&c.rails.length){const p=c.rails[0],ax=p[0][0],ay=p[0][1],dx=p[1][0]-ax,dy=p[1][1]-ay,L=Math.hypot(dx,dy)||1,t=clamp(((c.cx-ax)*dx+(c.cy-ay)*dy)/(L*L),0,1),sx=ax+dx*t,sy=ay+dy*t,len=2+c.station*1.4,wd=1+c.station*0.45;
     ctx.save();ctx.translate(sx*s,sy*s);ctx.rotate(Math.atan2(dy,dx));ctx.fillStyle=rgb(C.ink);ctx.fillRect(-len*s/2,-wd*s/2-2,len*s,wd*s+4);ctx.fillStyle=rgb(C["c-roadfill"]);ctx.fillRect(-len*s/2+1.5,-wd*s/2-0.5,len*s-3,wd*s+1);ctx.restore();}
-  if(c.rw){const L=(c.runway?20:12)/2,ax=c.rw.x-Math.cos(c.rw.th)*L,ay=c.rw.y-Math.sin(c.rw.th)*L,bx=c.rw.x+Math.cos(c.rw.th)*L,by=c.rw.y+Math.sin(c.rw.th)*L;
+  if(c.rw){const L=6,ax=c.rw.x-Math.cos(c.rw.th)*L,ay=c.rw.y-Math.sin(c.rw.th)*L,bx=c.rw.x+Math.cos(c.rw.th)*L,by=c.rw.y+Math.sin(c.rw.th)*L;
     ctx.save();ctx.lineCap="butt";ctx.strokeStyle=rgb(C["c-air"]);ctx.lineWidth=Math.max(4,s*1.6);ctx.beginPath();ctx.moveTo(ax*s,ay*s);ctx.lineTo(bx*s,by*s);ctx.stroke();
     ctx.strokeStyle=rgb(C.paper);ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(ax*s,ay*s);ctx.lineTo(bx*s,by*s);ctx.stroke();ctx.restore();
     const tx=c.rw.x+Math.cos(c.rw.th+Math.PI/2)*3,ty=c.rw.y+Math.sin(c.rw.th+Math.PI/2)*3;ctx.fillStyle=rgb(C["c-air"]);
-    for(let t=0;t<c.term;t++){const ox=Math.cos(c.rw.th)*(t*2.2-1),oy=Math.sin(c.rw.th)*(t*2.2-1);ctx.fillRect((tx+ox)*s-s,(ty+oy)*s-s,2*s,2*s);}}
+    ctx.fillRect(tx*s-s,ty*s-s,2*s,2*s);}
   drawCityOverlays(ctx,c,s);ctx.restore();
   const km=[1,2,5].filter(k=>k/CELLKM*s<=150).pop()||1,bar=km/CELLKM*s,bx=12,by=h-14;
   ctx.fillStyle=rgb(C["c-ground"],0.85);ctx.fillRect(bx-6,by-18,bar+44,26);
@@ -1352,7 +1365,7 @@ function drawCity(){
   const stats=[["Жители",fmtPop(c.P)],["Сельская округа",fmtPop(c.R)+", сёл "+villages(c).length],["Застроено",c.area.toFixed(1).replace(".",",")+" км²"],["Загрузка жилья",Math.round(c.P/c.H*100)+"%"],
     ["Ввод за год",c.lastBuild?"на "+fmtPop(c.lastBuild):"нет"],["Медицина",Math.round(c.health*100)+"%, "+fmtPop(c.healthSrv)+" из "+fmtPop(c.healthPop)],["Образование",Math.round(c.edu*100)+"%, "+(c.uni?UNI[c.uni]:"вуза нет")],
     ["Агломерация",c.core>=0?"входит в «"+S.cities[c.core].name+"»":c.sats&&c.sats.length?c.sats.length+" "+plural(c.sats.length,"спутник","спутника","спутников")+", всего "+fmtPop(c.PA):"нет"],["Земля в центре","≈ "+fmtRub(landBase(c))],[S.planet?"До столицы":"До центра области",c.govc?"–":fmtT(TT[capIdx()][S.sel])],
-    ["Метро",c.metro.length?stations(c)+" ст., охват "+Math.round(c.metroCov*100)+"%":"нет"],["Аэропорт",c.air?(c.runway?"3000 м":"1800 м")+", загрузка "+Math.round(c.paxLoad*100)+"%":"нет"],
+    ["Метро",c.metro.length?stations(c)+" ст., охват "+Math.round(c.metroCov*100)+"%":"нет"],["Аэропорт",c.air?"уровень "+(c.airLevel||1)+" · "+airportLevelText(c.airLevel||1)+" пассажиров/год · загрузка "+Math.round(c.paxLoad*100)+"%":"нет"],
     ["Морской порт",portLevel(c,"sea")?"уровень "+portLevelName(portLevel(c,"sea"))+" · "+fmtCargoTonnes(portCapacity(c,"sea"))+"/год":"нет"],["Речной порт",portLevel(c,"river")?"уровень "+portLevelName(portLevel(c,"river"))+" · "+fmtCargoTonnes(portCapacity(c,"river"))+"/год":"нет"]];
   $("#cstats").innerHTML=stats.map(x=>"<div><span class=\"label\">"+x[0]+"</span><b>"+x[1]+"</b></div>").join("");
   drawEcon(c);drawActs(c);drawProd(c);drawMetroBox(pc);drawClark(c);$("#openPlan").textContent=pc.sats&&pc.sats.length?"Открыть план агломерации":"Открыть план города";{const bn=$("#bizNote");if(bn)bn.textContent="2 млрд за квартал 450 × 450 м: офисы, торговля, управление.";}
@@ -1367,10 +1380,12 @@ function drawEcon(c){const J=Math.max(c.J,1);
    if(k==="seaPort")return "доступ к морю · до "+fmtCargoTonnes(PORT_CAPACITY.sea[1])+" груза в год";
    if(k==="riverPort")return "доступ к реке · до "+fmtCargoTonnes(PORT_CAPACITY.river[1])+" груза в год";
    if(k==="seaPortUpgrade"){const n=portLevel(c,"sea")+1;return "уровень "+portLevelName(n)+" · до "+fmtCargoTonnes(PORT_CAPACITY.sea[n])+" груза в год";}
-   if(k==="riverPortUpgrade"){const n=portLevel(c,"river")+1;return "уровень "+portLevelName(n)+" · до "+fmtCargoTonnes(PORT_CAPACITY.river[n])+" груза в год";}
+  if(k==="riverPortUpgrade"){const n=portLevel(c,"river")+1;return "уровень "+portLevelName(n)+" · до "+fmtCargoTonnes(PORT_CAPACITY.river[n])+" груза в год";}
+  if(k==="air")return "код и название аэропорта задаются в разделе «Авиасообщение»";
+  if(k==="airUpgrade"){const n=Math.min(10,(c.airLevel||1)+1);return "уровень "+n+" · до "+airportLevelText(n)+" пассажиров в год";}
    if(k==="station")return c.station?(c.station>=5?ST[5]:ST[c.station]+" → "+ST[c.station+1]):"появится с первой ж/д";
   if(k==="govc"&&!c.govc){const o=S.cities.find(o=>o.govc);return o?"перенести сюда из города "+o.name:a.d;}return a.d;}
- function actCount(c,k){if(k.startsWith("pl_"))return (c.pw&&c.pw[k.slice(3)])||0;if(k==="lc")return c.lc||0;if(k==="station")return c.station||0;if(k==="seaPort")return portLevel(c,"sea")?portLevelName(portLevel(c,"sea")):0;if(k==="riverPort")return portLevel(c,"river")?portLevelName(portLevel(c,"river")):0;if(ACT[k].unique)return 0;return k==="hosp"?c.hosp:k==="uni"?c.uni:k==="mus"?c.mus:k==="park"?c.park:k==="tech"?c.tech:k==="dep"?S.T.deps.filter(d=>d.dev===c.i).length:k==="mline"?c.metro.length:k==="mext"?stations(c):k==="term"?c.term:0;}
+ function actCount(c,k){if(k.startsWith("pl_"))return (c.pw&&c.pw[k.slice(3)])||0;if(k==="lc")return c.lc||0;if(k==="station")return c.station||0;if(k==="seaPort")return portLevel(c,"sea")?portLevelName(portLevel(c,"sea")):0;if(k==="riverPort")return portLevel(c,"river")?portLevelName(portLevel(c,"river")):0;if(k==="air")return c.air?"уровень "+(c.airLevel||1):0;if(k==="airUpgrade")return c.air?"уровень "+(c.airLevel||1):0;if(ACT[k].unique)return 0;return k==="hosp"?c.hosp:k==="uni"?c.uni:k==="mus"?c.mus:k==="park"?c.park:k==="tech"?c.tech:k==="dep"?S.T.deps.filter(d=>d.dev===c.i).length:k==="mline"?c.metro.length:k==="mext"?stations(c):0;}
 function drawActs(c){const el=$("#acts");
   const html=Object.keys(ACT).map(k=>{const a=ACT[k],why=canAct(c,k),n=actCount(c,k);
     return "<button type=\"button\" class=\"act\" data-act=\""+k+"\""+(why?" disabled":"")+"><b>"+a.t+(n?" · "+n:"")+"</b><span>"+(why&&why!=="не хватает денег"?why:actDesc(c,k,a))+"</span><span class=\"cost\">"+fmtM(costOf(c,k))+"</span></button>";}).join("");
@@ -1429,7 +1444,7 @@ function drawKpis(){const cs=S.cities,t=cs.reduce((s,c)=>s+c.P+c.R,0)+(S.ruralPo
   const x=Math.round((S.extNet||0)+(S.ruralFlow||0));const ke=$("#kExt");ke.textContent=(x>0?"+":"")+fmtN(x);ke.className=x>0?"up":x<0?"down":"";
   $("#kFirms").textContent=fmtN(f);if(S.en){const e=S.en;$("#kEn").textContent=fmtN(e.D)+" / "+fmtN(e.cap)+" МВт";const k2=$("#kEn2");k2.textContent=e.def>0.005?"дефицит "+Math.round(e.def*100)+"%":e.imp>0.5?"покупаем "+fmtN(e.imp)+" МВт":"резерв "+Math.round((e.cap/Math.max(1,e.D)-1)*100)+"%";k2.className=e.def>0.005||e.imp>0.5?"down":"";}
   $("#step").disabled=$("#play").disabled=S.year>=YMAX;}
-const FIN_IN_LABELS={population:"Поступления с населения",enterprise:"Налог на прибыль и добычу",energy:"Энергетика",trade:"Внешняя торговля"},FIN_OUT_LABELS={road_local:"Строительство местных дорог",road_regional:"Строительство региональных дорог",road_national:"Строительство национальных дорог",road_international:"Строительство международных дорог",roadUpgrade:"Ускорение дорог",roadMaintain_local:"Содержание местных дорог",roadMaintain_regional:"Содержание региональных дорог",roadMaintain_national:"Содержание национальных дорог",roadMaintain_international:"Содержание международных дорог",railBuild:"Строительство ж/д",railMaintain:"Содержание ж/д",aviation:"Новые авиалинии и увеличение частоты",airportBuild:"Аэропорты, ВПП и терминалы",airOperations:"Работа аэропортов и рейсов",ports:"Морские и речные порты",cargoBuild:"Строительство грузовых маршрутов",cargoOperations:"Работа грузовых маршрутов",territory:"Содержание присоединённых районов",metro:"Метро",parks:"Парки и заповедники",industry:"Производственные предприятия и технопарки",logistics:"Логистические комплексы",health:"Больницы",education:"Вузы",culture:"Музеи и театры",administration:"Управление и госучреждения",research:"Наукограды",energyBuild:"Строительство электростанций",energyGeneration:"Выработка электроэнергии",businessDistrict:"Деловые кварталы",construction:"Городская и прочая стройка",energy:"Дефицит энергетики",trade:"Дефицит внешней торговли"};
+const FIN_IN_LABELS={population:"Поступления с населения",enterprise:"Налог на прибыль и добычу",energy:"Энергетика",trade:"Внешняя торговля"},FIN_OUT_LABELS={road_local:"Строительство местных дорог",road_regional:"Строительство региональных дорог",road_national:"Строительство национальных дорог",road_international:"Строительство международных дорог",roadUpgrade:"Повышение класса и скорости дорог",roadMaintain_local:"Содержание местных дорог",roadMaintain_regional:"Содержание региональных дорог",roadMaintain_national:"Содержание национальных дорог",roadMaintain_international:"Содержание международных дорог",railBuild:"Строительство ж/д",railMaintain:"Содержание ж/д",aviation:"Новые авиалинии и увеличение частоты",airportBuild:"Аэропорты и рост их пропускной способности",airOperations:"Работа аэропортов и рейсов",ports:"Морские и речные порты",cargoBuild:"Строительство грузовых маршрутов",cargoOperations:"Работа грузовых маршрутов",territory:"Содержание присоединённых районов",metro:"Метро",parks:"Парки и заповедники",industry:"Производственные предприятия и технопарки",logistics:"Логистические комплексы",health:"Больницы",education:"Вузы",culture:"Музеи и театры",administration:"Управление и госучреждения",research:"Наукограды",energyBuild:"Строительство электростанций",energyGeneration:"Выработка электроэнергии",businessDistrict:"Деловые кварталы",construction:"Городская и прочая стройка",energy:"Дефицит энергетики",trade:"Дефицит внешней торговли"};
 function financeTable(title,items,labels,kind){const rows=Object.keys(labels).filter(k=>(items&&items[k])>0.0001).map(k=>"<tr><td class=\"l\">"+labels[k]+"</td><td class=\"n "+kind+"\">"+(kind==="down"?"−":"+")+fmtM(items[k])+"</td></tr>").join("");return "<h3>"+title+"</h3>"+(rows?"<div class=\"tablewrap\"><table class=\"dt\"><tbody>"+rows+"</tbody></table></div>":"<p class=\"note\">Пока нет операций.</p>");}
 function drawBudget(){const box=$("#budgetBody"),sheet=$("#budgetSheetBody");if(!box&&!sheet)return;const book=financeBook(),last=book.last,cur=book.current,tot=o=>Object.values(o||{}).reduce((a,v)=>a+(Number(v)||0),0),income=tot(last&&last.income),expense=tot(last&&last.expense),net=income-expense,curExpense=tot(cur.expense);let html="",full="";
   if(last){html+="<p class=\"note\">Итоги за "+last.year+": поступило <b class=\"up\">"+fmtM(income)+"</b>, израсходовано <b class=\"down\">"+fmtM(expense)+"</b>, сальдо "+(net<0?"−":"+")+fmtM(Math.abs(net))+".</p>"+financeTable("Доходы",last.income,FIN_IN_LABELS,"up")+financeTable("Расходы",last.expense,FIN_OUT_LABELS,"down");
@@ -1493,7 +1508,8 @@ function mapPos(e){const cv=$("#region"),r=cv.getBoundingClientRect(),s=r.width/
 $("#region").addEventListener("mouseleave",()=>{probeAt(0,0,"");if(founding){ghost=null;drawRegion();}});
 $("#region").addEventListener("click",e=>{if(dragMoved){dragMoved=false;return;}const m=mapPos(e);
   if(placingCapital){finishStartPlacement(m.x,m.y);return;}
-  if(claimMode){claimDistrictAt(m.x,m.y);return;}if(pmode){placePark(m);return;}if(cargoDraft){cargoRouteClick(m);return;}if(airDraft){airlineClick(m);return;}if(rdraw){roadClick(m);return;}if(dPick!=null){pickClick(m);return;}
+  if(claimMode){openDistrictPopup(m.x,m.y,e);return;}if(pmode){placePark(m);return;}if(cargoDraft){cargoRouteClick(m);return;}if(airDraft){airlineClick(m);return;}if(rdraw){roadClick(m);return;}if(dPick!=null){pickClick(m);return;}
+  if(S.planet&&LAYER==="territory"){openDistrictPopup(m.x,m.y,e);return;}$("#territoryPopup").hidden=true;
   if(dEdit&&dEdit.target==="region"){const r=RC.getBoundingClientRect();addVertex(m,10/(r.width/RW*V.z));return;}
   if(founding){ghost=m;const why=canFound(m.x,m.y),fc=foundCost(m.x,m.y);
     if(!why&&S.budget>=fc.cost){found(m.x,m.y);setFounding(false);render();}else drawRegion();return;}
@@ -1598,12 +1614,12 @@ function makeAdminDistrictMap(seed,version=2){
   const landMask=new Uint8Array(N);let landCount=0;for(let gy=0;gy<H;gy++)for(let gx=0;gx<W;gx++){const q=gy*W+gx;if(seaD((gx+.5)*RW/W,(gy+.5)*RH/H)>=0){landMask[q]=1;landCount++;}}
   const land=new Uint32Array(landCount),comp=new Int32Array(N);comp.fill(-1);let lp=0;for(let q=0;q<N;q++)if(landMask[q])land[lp++]=q;
   const queue=new Uint32Array(landCount),componentSizes=[];let componentCount=0;for(let q=0;q<N;q++){if(!landMask[q]||comp[q]>=0)continue;let head=0,tail=0;queue[tail++]=q;comp[q]=componentCount;while(head<tail){const at=queue[head++],x=at%W,y=(at/W)|0,ns=[y*W+(x+W-1)%W,y*W+(x+1)%W,y?at-W:-1,y<H-1?at+W:-1];for(const n of ns){if(n>=0&&landMask[n]&&comp[n]<0){comp[n]=componentCount;queue[tail++]=n;}}}componentSizes.push(tail);componentCount++;}
-  const target=Math.min(300000,Math.max(componentCount,Math.ceil(landCount*.24))),owner=new Uint32Array(N),points=new Uint32Array(target),hasComponent=new Uint8Array(componentCount);let count=0;
+  const target=Math.min(300000,Math.max(componentCount,Math.ceil(landCount*(version >= 3 ? 0.06 : 0.24)))),owner=new Uint32Array(N),points=new Uint32Array(target),hasComponent=new Uint8Array(componentCount);let count=0;
   for(let q=0;q<N;q++)if(landMask[q]){const ci=comp[q];if(!hasComponent[ci]){hasComponent[ci]=1;owner[q]=++count;points[count-1]=q;}}
   for(let i=0;i<landCount&&count<target;i++){const j=i+Math.floor(rr()*(landCount-i)),q=land[j];land[j]=land[i];land[i]=q;if(owner[q])continue;owner[q]=++count;points[count-1]=q;}
   let head=0,tail=count;for(let i=0;i<count;i++)queue[i]=points[i];while(head<tail){const q=queue[head++],x=q%W,y=(q/W)|0,ns=[y*W+(x+W-1)%W,y*W+(x+1)%W,y?q-W:-1,y<H-1?q+W:-1],id=owner[q];for(const n of ns){if(n<0||!landMask[n]||owner[n]||comp[n]!==comp[q])continue;owner[n]=id;queue[tail++]=n;}}
   const sizes=new Uint32Array(count),area=new Float64Array(count);for(let q=0;q<N;q++){const id=owner[q]-1;if(id<0)continue;sizes[id]++;const lat=((Math.floor(q/W)+.5)/H-.5)*Math.PI;area[id]+=(RW/W)*(RH/H)*Math.max(.08,Math.cos(lat));}
-  S.adminMap={version:2,W,H,owner,component:comp,points:points.slice(0,count),sizes,area,count};S.districts=[];rebuildDistrictLookup();
+  S.adminMap={version:version>=3?version:2,W,H,owner,component:comp,points:points.slice(0,count),sizes,area,count};S.districts=[];rebuildDistrictLookup();
 }
 function rebuildDistrictLookup(){S.districtById=new Map();(S.regions||[]).forEach(r=>{r.districts=[];});(S.districts||[]).forEach(d=>{if(!d||!Number.isInteger(+d.id))return;d.id=+d.id;S.districtById.set(d.id,d);const r=S.regions[d.regionId];if(r&&!r.districts.includes(d.id))r.districts.push(d.id);});}
 function districtAt(x,y){const a=S&&S.adminMap;if(!a)return -1;const gx=clamp(Math.floor(wrapX(x)/RW*a.W),0,a.W-1),gy=clamp(Math.floor(y/RH*a.H),0,a.H-1);let id=a.owner[gy*a.W+gx]-1;if(id>=0)return id;if(S.planet&&seaD(x,y)<0)return -1;let best=-1,bd=Infinity;for(let oy=-1;oy<=1;oy++){const ny=gy+oy;if(ny<0||ny>=a.H)continue;for(let ox=-1;ox<=1;ox++){if(!ox&&!oy)continue;const nx=(gx+ox+a.W)%a.W,q=ny*a.W+nx,k=a.owner[q]-1;if(k<0)continue;const px=(nx+.5)*RW/a.W,py=(ny+.5)*RH/a.H,d=geoXY(x,y,px,py);if(d<bd){bd=d;best=k;}}}return bd<=Math.hypot(RW/a.W,RH/a.H)*0.8?best:-1;}
@@ -1621,13 +1637,13 @@ function restoreTerritory(){if(!S.planet)return;if(!S.regions.length&&S.cities.l
 function cityLandComponent(i){const c=S.cities[i];if(!c||!S.planet)return -1;const a=S.adminMap;if(a&&a.component){const x=clamp(Math.floor(wrapX(c.x)/RW*a.W),0,a.W-1),y=clamp(Math.floor(c.y/RH*a.H),0,a.H-1);return a.component[y*a.W+x];}const W=720,H=360,x=Math.floor(wrapX(c.x)/RW*W),y=clamp(Math.floor(c.y/RH*H),0,H-1);return landComponents()[y*W+x];}
 function distCompute(){const cs=S.cities,key=(S.planet?"planet|":"")+S.seed+"|"+cs.map(c=>c.x+":"+c.y).join(",")+"|"+S.ext.map(e=>e.gx+":"+e.gy).join(",")+"|"+S.regions.map(d=>d.color+":"+d.center+":"+(d.manualCities||[]).join(",")+":"+(d.districts||[]).join(",")).join(";")+"|"+(S.districts||[]).map(d=>d.id+":"+d.regionId).join(",");if(DIST.key===key&&DIST.img)return;DIST.key=key;
   const W=S.planet&&S.adminMap?S.adminMap.W:S.planet?720:320,H=S.planet&&S.adminMap?S.adminMap.H:S.planet?360:240,N=W*H,cv=document.createElement("canvas");cv.width=W;cv.height=H;const x=cv.getContext("2d"),im=x.createImageData(W,H),cnt=S.regions.map(()=>0),area=S.regions.map(()=>0),cell=new Int32Array(N).fill(-1);
-  if(S.planet&&S.adminMap){for(let q=0;q<N;q++)cell[q]=S.adminMap.owner[q]-1;for(let gy=0;gy<H;gy++)for(let gx=0;gx<W;gx++){const q=gy*W+gx,id=cell[q];if(id<0)continue;const d=S.districtById.get(id),ri=d?d.regionId:-1,nb=(a,b)=>b<0||b>=H?-1:cell[b*W+(S.planet?(a+W)%W:a)],neighbors=[nb(gx-1,gy),nb(gx+1,gy),nb(gx,gy-1),nb(gx,gy+1)],edge=neighbors.some(v=>v!==id),regionEdge=neighbors.some(v=>{const n=S.districtById.get(v);return v!==id&&n&&d&&n.regionId!==ri;});let color="#9CA5A0",alpha=edge?64:0;if(d){const reg=S.regions[ri];color=reg?reg.color:"#AAB7AF";alpha=regionEdge?225:edge?82:22;cnt[ri]=(cnt[ri]||0)+1;const lat=((gy+.5)/H-.5)*Math.PI;area[ri]=(area[ri]||0)+(RW/W)*(RH/H)*Math.max(.08,Math.cos(lat));}const col=hex(color),p=q*4;im.data[p]=col[0];im.data[p+1]=col[1];im.data[p+2]=col[2];im.data[p+3]=alpha;}}
+  if(S.planet&&S.adminMap){for(let q=0;q<N;q++)cell[q]=S.adminMap.owner[q]-1;for(let gy=0;gy<H;gy++)for(let gx=0;gx<W;gx++){const q=gy*W+gx,id=cell[q];if(id<0)continue;const d=S.districtById.get(id),ri=d?d.regionId:-1,nb=(a,b)=>b<0||b>=H?-1:cell[b*W+(S.planet?(a+W)%W:a)],neighbors=[nb(gx-1,gy),nb(gx+1,gy),nb(gx,gy-1),nb(gx,gy+1)],edge=neighbors.some(v=>v!==id),regionEdge=neighbors.some(v=>{const n=S.districtById.get(v);return v!==id&&n&&d&&n.regionId!==ri;});let color="#9CA5A0",alpha=edge?210:0;if(d){const reg=S.regions[ri];color=reg?reg.color:"#AAB7AF";alpha=regionEdge?255:edge?210:24;cnt[ri]=(cnt[ri]||0)+1;const lat=((gy+.5)/H-.5)*Math.PI;area[ri]=(area[ri]||0)+(RW/W)*(RH/H)*Math.max(.08,Math.cos(lat));}const col=hex(color),p=q*4;im.data[p]=col[0];im.data[p+1]=col[1];im.data[p+2]=col[2];im.data[p+3]=alpha;}}
   else{for(let gy=0;gy<H;gy++)for(let gx=0;gx<W;gx++){const wx=(gx+.5)*RW/W,wy=(gy+.5)*RH/H;let bi=-1,bd=Infinity;S.regions.forEach((d,k)=>d.cities.forEach(ci=>{const c=cs[ci],q=Math.hypot(c.x-wx,c.y-wy);if(q<bd){bd=q;bi=k;}}));if(bi>=0){cell[gy*W+gx]=bi;cnt[bi]++;area[bi]+=(RW/W)*(RH/H);}}for(let gy=0;gy<H;gy++)for(let gx=0;gx<W;gx++){const q=gy*W+gx,v=cell[q];if(v<0)continue;const nb=(a,b)=>b<0||b>=H?-1:cell[b*W+a],edge=nb(gx-1,gy)!==v||nb(gx+1,gy)!==v||nb(gx,gy-1)!==v||nb(gx,gy+1)!==v,col=hex(S.regions[v].color),p=q*4;im.data[p]=col[0];im.data[p+1]=col[1];im.data[p+2]=col[2];im.data[p+3]=edge?220:34;}}
   x.putImageData(im,0,0);DIST.img=cv;DIST.cnt=cnt;DIST.area=area;DIST.cell=cell;DIST.W=W;DIST.H=H;DIST.cellA=S.planet?((RW/W)*(RH/H)):((RW/W)*(RH/H));DIST.nations=[];}function drawCountryNames(ctx,s,wrapShift){if(!S.planet||mapScaleTier()!==0||!S.ext.length)return;distCompute();ctx.save();ctx.textAlign="center";ctx.textBaseline="middle";const placed=[],order=S.ext.map((e,i)=>({e,i,p:DIST.nations[i]})).filter(v=>v.p).sort((a,b)=>b.p.area-a.p.area);order.forEach(({e,p})=>{const text=e.name.toUpperCase(),x=(p.x+wrapShift)*s,y=p.y*s,fs=clamp(11+Math.sqrt(p.area)*s*0.055,12,26);let drawFs=fs;ctx.font="italic 700 "+fs+"px "+FONT.b;const tw=ctx.measureText(text).width,pad=5,gap=Math.max(fs*1.55,tw*0.2),candidates=[[0,0],[0,-gap],[0,gap],[-gap,0],[gap,0],[0,-gap*1.8],[0,gap*1.8],[-gap,-gap],[gap,gap]];let pos=null;
     for(const [dx,dy] of candidates){const box={x:x+dx-tw/2-pad,y:y+dy-fs*.7-pad,w:tw+pad*2,h:fs*1.4+pad*2};if(placed.every(b=>box.x+box.w+4<b.x||b.x+b.w+4<box.x||box.y+box.h+3<b.y||b.y+b.h+3<box.y)){pos={x:x+dx,y:y+dy,box};break;}}
     if(!pos){drawFs=11;ctx.font="italic 700 "+drawFs+"px "+FONT.b;const small=ctx.measureText(text).width,box={x:x-small/2-3,y:y-9,w:small+6,h:18};if(placed.some(b=>!(box.x+box.w+3<b.x||b.x+b.w+3<box.x||box.y+box.h+2<b.y||b.y+b.h+2<box.y)))return;pos={x,y,box};}
     placed.push(pos.box);ctx.font="italic 700 "+drawFs+"px "+FONT.b;ctx.lineWidth=Math.max(1.7,drawFs*.14);ctx.lineJoin="round";ctx.strokeStyle="rgba(18,29,31,.58)";ctx.fillStyle="rgba(245,239,220,.67)";ctx.strokeText(text,pos.x,pos.y);ctx.fillText(text,pos.x,pos.y);});ctx.restore();}
-function drawRegionDistricts(ctx,s,wrapShift=0,w=0,h=0,OX=0,OY=0){if(!S.regions.length)return;distCompute();ctx.save();ctx.globalAlpha=1;ctx.imageSmoothingEnabled=true;drawViewportImage(ctx,DIST.img,s,wrapShift,w,h,OX,OY);ctx.restore();
+function drawRegionDistricts(ctx,s,wrapShift=0,w=0,h=0,OX=0,OY=0){if(!S.regions.length)return;distCompute();ctx.save();ctx.globalAlpha=1;ctx.imageSmoothingEnabled=false;drawViewportImage(ctx,DIST.img,s,wrapShift,w,h,OX,OY);ctx.restore();
   S.regions.forEach(d=>{if(d.center==null||!S.cities[d.center])return;const c=S.cities[d.center];ctx.strokeStyle=d.color;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(c.x*s,c.y*s,radius(c,s)+5,0,6.29);ctx.stroke();ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(c.x*s,c.y*s,radius(c,s)+9,0,6.29);ctx.stroke();});
   S.regions.forEach((d,k)=>{if(dPick===k)d.cities.forEach(i=>{const c=S.cities[i];ctx.strokeStyle=d.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(c.x*s,c.y*s,radius(c,s)+7,0,6.29);ctx.stroke();});
 });}
@@ -1646,7 +1662,6 @@ function drawTerritory(){
   const box=$("#territoryBody"),summary=$("#territorySummary");if(!box||!summary)return;
   const claimed=S.districts||[],unsettled=claimed.filter(d=>!S.cities.some(c=>c.districtId===d.id)).length,free=Math.max(0,(S.adminMap?S.adminMap.count:0)-claimed.length);
   summary.textContent="В государстве: "+claimed.length+" районов · свободно: "+free+" · межселенная территория: "+unsettled+" · сельских жителей: "+fmtPop(S.ruralPool||0)+". Свободные районы не входят в государство.";
-  const target=$("#territoryTargetRegion");if(target){const val=target.value,opts=S.regions.map((r,i)=>"<option value=\""+i+"\">"+esc(r.name)+"</option>").join("");target.innerHTML=opts+"<option value=\"new\">Создать новый регион</option>";if(val==="new")target.value="new";else if(S.regions[+val])target.value=val;else if(S.regions.length)target.value=String(S.regions.length-1);}
   const search=($("#territorySearch")?.value||"").trim().toLocaleLowerCase("ru"),filtered=search?claimed.filter(d=>{const label="район "+(d.id+1),cities=S.cities.filter(c=>c.districtId===d.id).map(c=>c.name.toLocaleLowerCase("ru"));return String(d.id+1).includes(search)||label.includes(search)||cities.some(n=>n.includes(search))||String(S.regions[d.regionId]?.name||"").toLocaleLowerCase("ru").includes(search);}):claimed;
   const pages=Math.max(1,Math.ceil(filtered.length/TERRITORY_PAGE_SIZE));territoryPage=clamp(territoryPage,0,pages-1);
   const rows=filtered.slice(territoryPage*TERRITORY_PAGE_SIZE,(territoryPage+1)*TERRITORY_PAGE_SIZE);
@@ -1655,19 +1670,28 @@ function drawTerritory(){
   const sig=rows.map(d=>d.id+":"+d.regionId+":"+d.centerCity).join(",")+"|"+S.regions.map(r=>r.name).join("|")+"|"+search;
   if(box.dataset.n!==sig&&!(document.activeElement&&box.contains(document.activeElement))){
     box.innerHTML=rows.length?rows.map(d=>{
-      const cities=S.cities.filter(c=>c.districtId===d.id),regions=S.regions.map((r,i)=>"<option value=\""+i+"\""+(i===d.regionId?" selected":"")+">"+esc(r.name)+"</option>").join("");
+      const cities=S.cities.filter(c=>c.districtId===d.id),region=esc(S.regions[d.regionId]?.name||"—");
       const centerOpts="<option value=\"\""+(d.centerCity==null?" selected":"")+">— не назначен —</option>"+cities.map(c=>"<option value=\""+c.i+"\""+(c.i===d.centerCity?" selected":"")+">"+esc(c.name)+"</option>").join("");
-      return "<tr><td class=\"l\">Район "+(d.id+1)+"</td><td><select data-district-region=\""+d.id+"\" aria-label=\"Регион района "+(d.id+1)+"\">"+regions+"</select></td><td><select data-district-center=\""+d.id+"\" aria-label=\"Районный центр района "+(d.id+1)+"\""+(cities.length?"":" disabled")+">"+centerOpts+"</select></td><td>"+esc(districtStatus(d))+"</td><td>"+fmtM(d.upkeep)+"/год</td><td><button class=\"link\" type=\"button\" data-new-region=\""+d.id+"\">новый регион</button></td></tr>";
-    }).join(""):"<tr><td class=\"empty\" colspan=\"6\">"+(search?"По запросу ничего не найдено.":"Присоединённых районов пока нет.")+"</td></tr>";
+      return "<tr><td class=\"l\">Район "+(d.id+1)+"</td><td>"+region+"</td><td><select data-district-center=\""+d.id+"\" aria-label=\"Районный центр района "+(d.id+1)+"\""+(cities.length?"":" disabled")+">"+centerOpts+"</select></td><td>"+esc(districtStatus(d))+"</td><td>"+fmtM(d.upkeep)+"/год</td></tr>";
+    }).join(""):"<tr><td class=\"empty\" colspan=\"5\">"+(search?"По запросу ничего не найдено.":"Присоединённых районов пока нет.")+"</td></tr>";
     box.dataset.n=sig;
   }
 }
 $("#territorySearch").addEventListener("input",()=>{territoryPage=0;drawTerritory();});
 $("#territoryPrev").addEventListener("click",()=>{territoryPage=Math.max(0,territoryPage-1);drawTerritory();});
 $("#territoryNext").addEventListener("click",()=>{territoryPage++;drawTerritory();});
-$("#territoryBody").addEventListener("change",e=>{const region=e.target.dataset.districtRegion,center=e.target.dataset.districtCenter;if(region!=null){const id=+region,d=S.districtById.get(id),next=+e.target.value;if(!assignDistrictRegion(id,next)){e.target.value=String(d.regionId);flash("Регион не может пересекать море. Для другого материка создайте отдельный регион.");return;}logEv("Район "+(id+1)+" передан региону «"+S.regions[next].name+"»");render();return;}if(center!=null){const d=S.districtById.get(+center),ci=e.target.value===""?null:+e.target.value;if(!d)return;d.centerCity=ci;const r=S.regions[d.regionId];if(r&&r.center==null&&ci!=null)r.center=ci;logEv(ci==null?"В районе "+(+center+1)+" снят районный центр":"Районный центр района "+(+center+1)+": "+S.cities[ci].name);evaluate();render();}});
-$("#territoryBody").addEventListener("click",e=>{const b=e.target.closest("[data-new-region]");if(!b)return;const id=+b.dataset.newRegion,ci=S.cities.find(c=>c.districtId===id),ri=S.regions.length;S.regions.push({name:"Регион "+(ri+1),color:DCOL[ri%DCOL.length],cities:ci?[ci.i]:[],center:ci?ci.i:null,manualCities:[],districts:[]});assignDistrictRegion(id,ri);if(ci){const d=S.districtById.get(id);d.centerCity=ci.i;}logEv("Создан регион "+S.regions[ri].name+" из района "+(id+1));$("#dbody").dataset.n="";render();});
-function claimDistrictAt(x,y){const id=districtAt(x,y);if(id<0){flash("Здесь нет сухопутного района.");return;}if(S.districtById.has(id)){flash("Район "+(id+1)+" уже входит в государство.");return;}const target=$("#territoryTargetRegion"),makeNew=!!(target&&target.value==="new");let ri;if(makeNew){ri=S.regions.length;}else ri=target&&S.regions[+target.value]?+target.value:Math.max(0,S.regions.length-1);if(!makeNew&&S.regions[ri]&&(S.regions[ri].districts||[]).some(other=>districtLandComponent(other)!==districtLandComponent(id))){flash("Регион не может пересекать море. Выберите другой регион или создайте новый.");return;}const cost=0.03+districtArea(id)*0.0000004;if(!spend(cost,"territory")){flash("Не хватает денег на присоединение района · "+fmtM(cost));return;}if(makeNew){S.regions.push({name:"Регион "+(ri+1),color:DCOL[ri%DCOL.length],cities:[],center:null,manualCities:[],districts:[]});target.value=String(ri);}const d=claimDistrict(id,ri);makeRuralSites(S.seed,S.ruralPool);logEv("К государству присоединён район "+(id+1)+" · "+S.regions[d.regionId].name);DIST.key="";evaluate();render();}
+$("#territoryBody").addEventListener("change",e=>{const center=e.target.dataset.districtCenter;if(center==null)return;const d=S.districtById.get(+center),ci=e.target.value===""?null:+e.target.value;if(!d)return;d.centerCity=ci;const r=S.regions[d.regionId];if(r&&r.center==null&&ci!=null)r.center=ci;logEv(ci==null?"В районе "+(+center+1)+" снят районный центр":"Районный центр района "+(+center+1)+": "+S.cities[ci].name);evaluate();render();});
+let districtPopupAnchor={x:12,y:64};
+function nearestMajorCityToDistrict(id){const a=S.adminMap,q=a.points[id],gx=q%a.W,gy=(q/a.W)|0,x=(gx+.5)*RW/a.W,y=(gy+.5)*RH/a.H;let best=null;S.cities.forEach(c=>{if(c.P<100000)return;const km=geoXY(c.x,c.y,x,y);if(!best||km<best.km)best={city:c,km};});return best;}
+function placeDistrictPopup(){const box=$("#territoryPopup"),view=$("#view");if(box.hidden)return;const vr=view.getBoundingClientRect(),w=box.offsetWidth,h=box.offsetHeight;box.style.left=clamp(districtPopupAnchor.x+12,8,Math.max(8,vr.width-w-8))+"px";box.style.top=clamp(districtPopupAnchor.y+12,8,Math.max(8,vr.height-h-8))+"px";}
+function showDistrictPopup(id){const box=$("#territoryPopup"),owned=S.districtById.get(id),area=fmtN(districtArea(id))+" км²";box.dataset.id=String(id);box.hidden=false;
+  if(!owned){const near=nearestMajorCityToDistrict(id),extra=near?Math.ceil(near.km/10):0,cost=15+extra;box.innerHTML="<b>Свободный район "+(id+1)+"</b><span class=\"note\">Площадь: "+area+"</span><span class=\"note\">Присоединение: 15 млрд"+(near?" + 1 млрд за каждые 10 км от «"+esc(near.city.name)+"» · "+fmtN(near.km)+" км":" · рядом пока нет города от 100 тыс.")+"</span><button type=\"button\" data-district-claim>Включить в государство · "+fmtM(cost)+"</button>";}
+  else{const component=districtLandComponent(id),fits=r=>!(r.districts||[]).some(other=>districtLandComponent(other)!==component)&&!(r.center!=null&&cityLandComponent(r.center)!==component)&&!(r.manualCities||[]).some(ci=>cityLandComponent(ci)!==component),opts=S.regions.map((r,i)=>({r,i})).filter(({r})=>fits(r)).map(({r,i})=>"<option value=\""+i+"\""+(i===owned.regionId?" selected":"")+">"+esc(r.name)+"</option>").join("");box.innerHTML="<b>Район "+(id+1)+"</b><span class=\"note\">Площадь: "+area+" · сейчас: "+esc(S.regions[owned.regionId]?.name||"без региона")+"</span><label class=\"note\">Выберите регион<select data-district-popup-region>"+opts+"<option value=\"new\">Создать новый регион</option></select></label>";}
+  placeDistrictPopup();}
+function openDistrictPopup(x,y,e){const id=districtAt(x,y);if(id<0){$("#territoryPopup").hidden=true;flash("Здесь нет района суши.");return;}const rect=$("#view").getBoundingClientRect();districtPopupAnchor={x:e.clientX-rect.left,y:e.clientY-rect.top};showDistrictPopup(id);}
+document.addEventListener("pointerdown",e=>{const popup=$("#territoryPopup");if(!popup.hidden&&!popup.contains(e.target)&&!e.target.closest("#region"))popup.hidden=true;});
+$("#territoryPopup").addEventListener("click",e=>{e.stopPropagation();const b=e.target.closest("[data-district-claim]");if(!b)return;const id=+$("#territoryPopup").dataset.id;if(S.districtById.has(id))return;const near=nearestMajorCityToDistrict(id),cost=15+(near?Math.ceil(near.km/10):0);if(!spend(cost,"territory")){flash("Нужно "+fmtM(cost)+" для присоединения района.");return;}const component=districtLandComponent(id),fits=r=>!(r.districts||[]).some(other=>districtLandComponent(other)!==component)&&!(r.center!=null&&cityLandComponent(r.center)!==component)&&!(r.manualCities||[]).some(ci=>cityLandComponent(ci)!==component);let ri=S.regions.findIndex(fits);if(ri<0){ri=S.regions.length;S.regions.push({name:"Регион "+(ri+1),color:DCOL[ri%DCOL.length],cities:[],center:null,manualCities:[],districts:[]});}const d=claimDistrict(id,ri);makeRuralSites(S.seed,S.ruralPool);logEv("К государству присоединён район "+(id+1)+" · "+fmtM(cost)+" · регион «"+S.regions[d.regionId].name+"»");DIST.key="";evaluate();render();showDistrictPopup(id);});
+$("#territoryPopup").addEventListener("change",e=>{if(!e.target.matches("[data-district-popup-region]"))return;const id=+$("#territoryPopup").dataset.id,value=e.target.value;let ri;if(value==="new"){ri=S.regions.length;S.regions.push({name:"Регион "+(ri+1),color:DCOL[ri%DCOL.length],cities:[],center:null,manualCities:[],districts:[]});}else ri=+value;if(!assignDistrictRegion(id,ri)){flash("Регион должен находиться на той же суше.");showDistrictPopup(id);return;}logEv("Район "+(id+1)+" переведён в регион «"+S.regions[ri].name+"»");evaluate();render();$("#territoryPopup").hidden=true;});
 $("#dbody").addEventListener("change",e=>{const i=e.target.dataset.dc;if(i==null)return;const d=S.regions[+i];if(!d)return;const next=+e.target.value;if(S.planet){const cc=cityLandComponent(next);if(d.manualCities.some(ci=>cityLandComponent(ci)!==cc)){e.target.value=String(d.center);flash("Область не может объединять сушу через море.");return;}}d.center=next;logEv("Центр области «"+d.name+"»: "+S.cities[d.center].name);ZONE.key="";DIST.key="";evaluate();render();});
 function endPick(){const d=S.regions[dPick];if(d&&!d.cities.length&&!(S.planet&&(d.districts||[]).length))S.regions.splice(dPick,1);else if(d)logEv("Регион «"+d.name+"»: городов "+d.cities.length);dPick=null;DIST.key="";$("#dbody").dataset.n="";toolButtons();render();}
 function pickClick(m){const k=nodeAt(m);if(k==null||typeof k==="string")return;const d=S.regions[dPick];if(S.planet){if(S.regions.some(o=>o.center===k&&o!==d)){flash("Город остаётся центром своей области.");return;}d.manualCities=d.manualCities||[];const at=d.manualCities.indexOf(k);if(at>=0)d.manualCities.splice(at,1);else{if(d.center!=null&&cityLandComponent(d.center)!==cityLandComponent(k)){flash("Область не может объединять сушу через море. Создайте отдельную область.");return;}S.regions.forEach(o=>{o.manualCities=(o.manualCities||[]).filter(i=>i!==k);});d.manualCities.push(k);}DIST.key="";evaluate();render();return;}const at=d.cities.indexOf(k);if(at>=0)d.cities.splice(at,1);else{S.regions.forEach(o=>{const j=o.cities.indexOf(k);if(j>=0)o.cities.splice(j,1);});d.cities.push(k);}DIST.key="";render();}
@@ -1682,19 +1706,20 @@ function nodeAt(m){const r=RC.getBoundingClientRect(),w=r.width,h=r.height,s=w/R
   S.ext.forEach(e=>{const ex=(S.planet?nearX(e.gx,V.cx):e.gx)*s+OX,d=Math.hypot(ex-mx,e.gy*s+OY-my)-6;if(d<10&&d<bd){bd=d;best="e"+e.k;}});
   return best;}
 function nodePos(k){const o=byKey(k);if(!o.ext)return [o.x,o.y];const r=RC.getBoundingClientRect(),w=r.width,h=r.height,s=w/RW*V.z,OX=w/2-V.cx*s,OY=h/2-V.cy*s;return [(clamp(o.gx*s+OX,6,w-6)-OX)/s,(clamp(o.gy*s+OY,6,h-6)-OY)/s];}
-function segInfo(a,b){if(typeof a==="string"&&typeof b==="string")return {err:"между соседними государствами дорога не прокладывается"};const water=roadWaterError(a,b);if(water)return {err:water};
+function segInfo(a,b){const A=byKey(a),B=byKey(b),external=!!(A.ext||B.ext);if(typeof a==="string"&&typeof b==="string")return {err:"между соседними государствами дорога не прокладывается"};const water=roadWaterError(a,b);if(water)return {err:water};
   if(rmode==="up"){const r=[linkBetween(a,b,"road"),linkBetween(a,b,"rail")].find(x=>x&&!x.fast);if(!r)return {err:"здесь нечего модернизировать"};return {mode:r.mode,class:r.mode==="road"?roadClass(r):null,cost:linkCost(a,b,r.mode,true,r.mode==="road"?roadClass(r):null),up:true};}
-  if(linkBetween(a,b,rmode))return {err:rmode==="rail"?"железная дорога уже есть":"дорога уже есть"};if(rmode==="road"){const A=byKey(a),B=byKey(b),external=!!(A.ext||B.ext),cls=selectedRoadClass();if(cls==="international"&&!S.ext.length)return {err:"в этой игре соседние государства отключены"};if(external&&cls!=="international")return {err:"до соседнего государства нужна международная дорога"};if(!external&&cls==="international")return {err:"международная дорога должна соединять города разных государств"};return {mode:rmode,class:cls,cost:linkCost(a,b,rmode,false,cls)};}return {mode:rmode,cost:linkCost(a,b,rmode,false)};}
+  if(rmode==="road"){const cls=selectedRoadClass(),r=linkBetween(a,b,"road");if(external&&cls!=="international")return {err:"между государствами разрешён только международный класс дороги"};if(r){const current=roadClass(r),from=ROAD_CLASS_RANK[current],to=ROAD_CLASS_RANK[cls];if(to===from)return {err:"этот класс дороги уже установлен"};if(to>from)return {err:"понизить класс дороги нельзя"};if(to!==from-1)return {err:"повышайте класс по порядку: региональный, национальный, международный"};const cost=Math.max(0,linkCost(a,b,"road",false,cls)-linkCost(a,b,"road",false,current));return {mode:"road",class:cls,classUpgrade:true,cost};}if(linkBetween(a,b,"rail"))return {err:"железная дорога уже есть на этой паре городов"};return {mode:"road",class:cls,cost:linkCost(a,b,"road",false,cls)};}
+  if(linkBetween(a,b,rmode))return {err:rmode==="rail"?"железная дорога уже есть":"дорога уже есть"};return {mode:rmode,cost:linkCost(a,b,rmode,false)};}
 function roadClick(m){const k=nodeAt(m);if(k==null){rdraw.from=null;rdraw.msg="";drawRegion();return;}
   if(rdraw.from==null||rdraw.from===k){rdraw.from=k;rdraw.msg="";drawRegion();return;}
   const a=rdraw.from,inf=segInfo(a,k);if(inf.err){rdraw.msg=inf.err;rdraw.from=k;drawRegion();return;}
-  const expense=inf.up?(inf.mode==="rail"?"railUpgrade":"roadUpgrade"):inf.mode==="rail"?"railBuild":"road_"+inf.class;if(!spend(inf.cost,expense)){rdraw.msg="не хватает денег";drawRegion();return;}
-  buildLink(a,k,inf.mode,inf.class);const A=byKey(a),B=byKey(k);
-  logEv(inf.up?(inf.mode==="rail"?"Железная дорога ":"Дорога ")+A.name+" – "+B.name+" стала скоростной":"Проложена "+(inf.class?ROAD_CLASS_LABELS[inf.class]+" автодорога ":inf.mode==="rail"?"железная дорога ":"дорога ")+A.name+" – "+B.name);
+  const expense=inf.up?(inf.mode==="rail"?"railUpgrade":"roadUpgrade"):inf.classUpgrade?"roadUpgrade":inf.mode==="rail"?"railBuild":"road_"+inf.class;if(!spend(inf.cost,expense)){rdraw.msg="не хватает денег";drawRegion();return;}
+  buildLink(a,k,inf.mode,inf.class,inf.classUpgrade?"class":inf.up?"fast":null);const A=byKey(a),B=byKey(k);
+  logEv(inf.classUpgrade?"Дорога "+A.name+" – "+B.name+" повышена до "+ROAD_CLASS_LABELS[inf.class]+" класса":inf.up?(inf.mode==="rail"?"Железная дорога ":"Дорога ")+A.name+" – "+B.name+" стала скоростной":"Проложена "+(inf.class?ROAD_CLASS_LABELS[inf.class]+" автодорога ":inf.mode==="rail"?"железная дорога ":"дорога ")+A.name+" – "+B.name);
   rdraw.from=k;rdraw.msg="";evaluate();render();}
 function drawRoadGhost(ctx,s){if(!rdraw||rdraw.from==null)return;const [ax,ay]=nodePos(rdraw.from),cls=rmode==="road"?selectedRoadClass():null,ghostColor=cls==="local"?"#AAB8C1":cls==="national"?"#74D6F4":cls==="international"?"#C7A5FF":"#F0B761";ctx.save();ctx.strokeStyle=ghostColor;ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(ax*s,ay*s,10,0,6.29);ctx.stroke();
   if(rdraw.hover){const hk=nodeAt(rdraw.hover);let bx=rdraw.hover.x,by=rdraw.hover.y,txt=rdraw.msg||"";
-    if(hk!=null&&hk!==rdraw.from){[bx,by]=nodePos(hk);const inf=segInfo(rdraw.from,hk);txt=inf.err?inf.err:(inf.up?"модернизация, ":inf.class?ROAD_CLASS_LABELS[inf.class]+" дорога · ":"")+fmtM(inf.cost)+(S.budget<inf.cost?", не хватает денег":"");}
+    if(hk!=null&&hk!==rdraw.from){[bx,by]=nodePos(hk);const inf=segInfo(rdraw.from,hk);txt=inf.err?inf.err:(inf.classUpgrade?"повышение до "+ROAD_CLASS_LABELS[inf.class]+" · ":inf.up?"скоростная модернизация · ":inf.class?ROAD_CLASS_LABELS[inf.class]+" дорога · ":"")+fmtM(inf.cost)+(S.budget<inf.cost?", не хватает денег":"");}
     ctx.setLineDash([6,5]);ctx.strokeStyle=rmode==="rail"?rgb(C["c-rail"]):ghostColor;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(ax*s,ay*s);ctx.lineTo(bx*s,by*s);ctx.stroke();ctx.setLineDash([]);
     if(txt){ctx.font="12.5px "+FONT.b;ctx.fillStyle=rgb(C.ink);ctx.textAlign="left";ctx.textBaseline="alphabetic";halo(ctx,txt,bx*s+12,by*s-10);}}
   ctx.restore();}
@@ -1841,7 +1866,7 @@ function entWhy(c,k){const d=ENT[k];
 function localDiscount(g){return S.lastOut&&S.lastUse&&(S.lastOut[g]||0)>=(S.lastUse[g]||0)*0.999&&(S.lastOut[g]||0)>0?0.85:1;}
 function entEstimate(c,k,u){const d=ENT[k],pr=S.prices;u=u==null?1:u;let rev=0,cost=0;
   for(const g in d.out)rev+=d.out[g]*u*pr[g];for(const g in (d.inp||{}))cost+=d.inp[g]*u*pr[g]*localDiscount(g);
-   if(d.service)rev+=d.service*u*(c.air?1.3:1)*(c.runway?1.2:1);if(hasCargoPort(c)&&!d.service)rev*=1.06;if(c.sez&&!d.service)rev*=1.15;if(c.lc&&d.inp)rev*=1+0.04*Math.min(c.lc,3);
+   if(d.service)rev+=d.service*u*(c.air?1.3:1)*(c.airLevel>=4?1.2:1);if(hasCargoPort(c)&&!d.service)rev*=1.06;if(c.sez&&!d.service)rev*=1.15;if(c.lc&&d.inp)rev*=1+0.04*Math.min(c.lc,3);
   return {rev,cost,wages:d.jobs*u*WAGE,profit:rev-cost-d.jobs*u*WAGE};}
 function buildEnt(c,k){if(entWhy(c,k))return;const d=ENT[k];spend(d.cost,"industry");const e={k,u:0.5,profit:0,rev:0};
   if(d.dep){const di=depFor(c,d.dep);e.dep=di;S.T.deps[di].used=(S.T.deps[di].used||0)+1;}
@@ -1975,16 +2000,16 @@ $("#onBody").addEventListener("click",e=>{const t=e.target;onMsg="";
 /* ================= saving ================= */
 function rle(grid,forest){let out=[],prev=-1,n=0;for(let k=0;k<grid.length;k++){const v=grid[k]*2+forest[k];if(v===prev)n++;else{if(n)out.push(prev.toString(36)+"."+n.toString(36));prev=v;n=1;}}out.push(prev.toString(36)+"."+n.toString(36));return out.join(",");}
 function unrle(str,grid,forest){let k=0;str.split(",").forEach(t=>{const [a,b]=t.split(".");const v=parseInt(a,36),n=parseInt(b,36);for(let i=0;i<n&&k<grid.length;i++,k++){grid[k]=v>>1;forest[k]=v&1;}});}
-const CITY_KEYS=["coast","pw","carryS","name","x","y","P","R","J","founded","grace","hosp","uni","mus","park","tech","air","runway","term","seaPortLevel","riverPortLevel","gmus","lc","port","fact","carryH","carryI","carryA","lastSpec","clark","govc","hq","sci","sez","station","soilSh","forestSh","river","nature","vsize","metroCov"];
+const CITY_KEYS=["coast","pw","carryS","name","x","y","P","R","J","founded","grace","hosp","uni","mus","park","tech","air","airLevel","airportName","airportCode","seaPortLevel","riverPortLevel","gmus","lc","port","fact","carryH","carryI","carryA","lastSpec","clark","govc","hq","sci","sez","station","soilSh","forestSh","river","nature","vsize","metroCov"];
 function packCity(c){const o={};CITY_KEYS.forEach(k=>{if(c[k]!==undefined)o[k]=c[k];});
   o.grid=rle(c.grid,c.forest);o.roads=c.roads.map(r=>r.map(p=>[+p[0].toFixed(2),+p[1].toFixed(2)]));o.rails=c.rails;o.metro=c.metro;o.rw=c.rw;o.vsites=c.vsites;o.ent=c.ent;
   o.firms=c.firms;o.hist=c.hist.map(v=>Math.round(v));o.flags=c.flags;return o;}
 function unpackCity(o,i){const c={i,name:o.name,x:o.x,y:o.y,P:o.P,J:0,H:0,founded:o.founded,grace:o.grace||0,
     grid:new Uint8Array(G*G),forest:new Uint8Array(G*G),elev:new Float32Array(G*G),slope:new Float32Array(G*G),
     roadD:new Uint8Array(G*G),roadMask:new Uint8Array(G*G),stD:new Uint8Array(G*G).fill(255),roads:[],rails:[],metro:[],districts:[],metroCov:0,
-     hosp:0,uni:0,mus:0,park:0,tech:0,air:0,runway:0,term:0,seaPortLevel:0,riverPortLevel:0,port:0,rw:null,paxLoad:0,paxDemand:0,ent:[],
+     hosp:0,uni:0,mus:0,park:0,tech:0,air:0,airLevel:0,airportName:"",airportCode:"",seaPortLevel:0,riverPortLevel:0,port:0,rw:null,paxLoad:0,paxDemand:0,ent:[],
     firms:{},jobs:{},carryH:0,carryI:0,carryA:0,hist:[],lastBuild:0,flags:{},R:0,vsites:[],cx:G>>1,cy:G>>1,o:0.95,price:1,A:1,Arel:1,area:0,aband:0,builtCells:0,health:1,edu:0,cult:0,spec:"",MAr:1};
-   CITY_KEYS.forEach(k=>{if(o[k]!==undefined)c[k]=o[k];});if(o.port&&!o.seaPortLevel&&!o.riverPortLevel){if(c.river)c.riverPortLevel=1;else c.seaPortLevel=1;}c.port=hasCargoPort(c)?1:0;
+   CITY_KEYS.forEach(k=>{if(o[k]!==undefined)c[k]=o[k];});if(c.air){if(!Number.isFinite(+o.airLevel)||+o.airLevel<1){const oldCapacity=Math.max(100000,(Number(o.term)||1)*1000000);c.airLevel=Math.max(1,AIRPORT_CAPACITY.findIndex(v=>v>=oldCapacity));if(c.airLevel<1)c.airLevel=10;}c.airLevel=clamp(Math.round(c.airLevel),1,10);c.airportName=c.airportName||("Аэропорт "+c.name);c.airportCode=c.airportCode||airportDefaultCode(c.name,i);}if(o.port&&!o.seaPortLevel&&!o.riverPortLevel){if(c.river)c.riverPortLevel=1;else c.seaPortLevel=1;}c.port=hasCargoPort(c)?1:0;
   for(let gy=0;gy<G;gy++)for(let gx=0;gx<G;gx++){const k=gy*G+gx,wx=c.x+(gx-c.cx)*CELLKM,wy=c.y+(gy-c.cy)*CELLKM;c.elev[k]=elevVal(wx,wy)*0.7+0.3*S.T.nD(wx*1.5,wy*1.5);}
   for(let y=0;y<G;y++)for(let x=0;x<G;x++){const xl=Math.max(0,x-1),xr=Math.min(G-1,x+1),yu=Math.max(0,y-1),yd=Math.min(G-1,y+1);
     c.slope[y*G+x]=Math.min(1,Math.hypot(c.elev[y*G+xr]-c.elev[y*G+xl],c.elev[yd*G+x]-c.elev[yu*G+x])*30);}
@@ -1992,6 +2017,7 @@ function unpackCity(o,i){const c={i,name:o.name,x:o.x,y:o.y,P:o.P,J:0,H:0,founde
   c.rails=o.rails||[];c.metro=o.metro||[];c.rw=o.rw||null;c.vsites=o.vsites||[];c.ent=o.ent||[];c.hist=o.hist||[o.P];c.flags=o.flags||{};
   SECT.forEach(s=>{c.firms[s.k]=(o.firms&&o.firms[s.k])||0;c.jobs[s.k]=c.firms[s.k]*s.size;});c.J=SECT.reduce((a,s)=>a+c.jobs[s.k],0);
   recomputeH(c);bizUpdate(c);if(c.metro.length)metroUpdate(c);return c;}
+function normalizeAirportIdentities(){const used=new Set();S.cities.forEach(c=>{if(!c.air)return;c.airLevel=clamp(Math.round(c.airLevel||1),1,10);c.airportName=c.airportName||("Аэропорт "+c.name);let code=String(c.airportCode||"").toUpperCase();if(!/^[A-Z]{3}$/.test(code)||used.has(code))code=airportDefaultCode(c.name,c.i,used);c.airportCode=code;used.add(code);});}
 function lsKey(gid){return "verkhnedonsk-save-"+gid;}
 async function saveGame(gid){if(!DB||!UID){try{const meta={v:4,G,mapRW:RW,mapRH:RH,planet:!!S.planet,worldVersion:S.worldVersion||2,adminMapVersion:S.adminMapVersion||2,cultureId:S.cultureId||"RU",foreignStates:S.ext,continentCount:S.continentCount||5,continentNameStyle:S.continentNameStyle||"geographic",foreignCount:S.foreignCount||0,ruralPool:S.ruralPool||0,regionName:S.regionName||"",parks:S.parks,seed:S.seed,slot:S.slot||0,year:S.year,month:S.monthIndex||0,budget:S.budget,budgetBook:S.budgetBook,prices:S.prices,prevPrices:S.prevPrices||null,roads:S.roads,airRoutes:S.airRoutes||[],cargoRoutes:S.cargoRoutes||[],regions:S.regions,landDistricts:S.districts,log:S.log.slice(0,40),names:S.names,deps:S.T.deps.map(d=>d.used||0),depr:S.T.deps.map(d=>d.res==null?-1:Math.round(d.res)),tg:S.tg||1,ncity:S.cities.length,sel:S.sel,t:Date.now()};
     localStorage.setItem(lsKey(gid),JSON.stringify({meta,cities:S.cities.map(packCity)}));S_SOLO.save={year:S.year};onMsg="Сохранено в этом браузере, год "+S.year+".";}catch(e){onMsg="Не удалось сохранить в браузере. Возможно, включён приватный режим или закончилось место.";}onRender();return;}
@@ -2011,7 +2037,7 @@ async function loadSave(gid){let m,docs=[];
   const worldVersion=Number.isFinite(+m.worldVersion)?+m.worldVersion:1,adminMapVersion=Number.isFinite(+m.adminMapVersion)?+m.adminMapVersion:(worldVersion===1?1:2);init(m.seed,{slot:m.slot,year:m.year,prices:m.prices,bare:true,tg:m.tg||1,planet:!!m.planet,worldVersion,adminMapVersion,cultureId:m.cultureId||"RU",continentCount:m.continentCount||5,continentNameStyle:m.continentNameStyle||"geographic",foreignCount:m.foreignCount||0,ruralPool:m.ruralPool||0});S.monthIndex=Number.isFinite(+m.month)?clamp(+m.month,0,11):0;acc=0;lastGameDate="";updateGameDate();
    S.budget=m.budget;S.budgetBook=m.budgetBook||{current:{year:m.year||S.year,income:{},expense:{}},last:null};S.prevPrices=m.prevPrices||m.prices;S.roads=m.roads||[];S.airRoutes=Array.isArray(m.airRoutes)?m.airRoutes:[];S.cargoRoutes=Array.isArray(m.cargoRoutes)?m.cargoRoutes:[];S.regions=m.regions||m.districts||[];S.districts=Array.isArray(m.landDistricts)?m.landDistricts:[];rebuildDistrictLookup();S.parks=m.parks||[];S.regionName=m.regionName||"";S.log=m.log||[];S.names=m.names||S.names;S.sel=Math.min(m.sel||0,m.ncity-1);
   (m.deps||[]).forEach((u,i)=>{if(S.T.deps[i])S.T.deps[i].used=u;});(m.depr||[]).forEach((r,i)=>{if(S.T.deps[i]&&r>=0)S.T.deps[i].res=r;});
-  S.cities=docs.map((d,i)=>unpackCity(d,i));if(S.planet)restoreTerritory();if(S.planet&&!m.cultureId)S.names=cultureById(S.cultureId).cities.filter(n=>!S.cities.some(c=>c.name===n));S.ext=S.planet?[]:(Array.isArray(m.foreignStates)?m.foreignStates:makeExternal(S.foreignCount,S.cities[0]));if(S.planet)makeRuralSites(S.seed,S.ruralPool);S.cities.forEach(computeForeign);S.cities.forEach(c=>{c.pw=c.pw||{};});
+  S.cities=docs.map((d,i)=>unpackCity(d,i));normalizeAirportIdentities();if(S.planet)restoreTerritory();if(S.planet&&!m.cultureId)S.names=cultureById(S.cultureId).cities.filter(n=>!S.cities.some(c=>c.name===n));S.ext=S.planet?[]:(Array.isArray(m.foreignStates)?m.foreignStates:makeExternal(S.foreignCount,S.cities[0]));if(S.planet)makeRuralSites(S.seed,S.ruralPool);S.cities.forEach(computeForeign);S.cities.forEach(c=>{c.pw=c.pw||{};});
   if(!S.cities.some(c=>Object.keys(c.pw).length)){const pop=S.cities.reduce((a,c)=>a+c.P+c.R,0),cc=S.cities.find(c=>c.govc)||S.cities[0];cc.pw={tec:Math.max(1,Math.ceil(pop*0.5/1000/50))};}
   lastPairs=[];evaluate();buildTerrainImg();logEv("Партия загружена, год "+S.year);return true;}
 
@@ -2300,7 +2326,8 @@ function setTool(t){const cur=activeTool();clearTools();HINTMSG="";
   toolButtons();render();}
 function hintText(t){if(HINTMSG)return HINTMSG;
   if(t==="found")return "Выберите место для нового города. У курсора видны ресурсы и цена. Esc отменяет.";
-  if(t==="claim")return "Выберите на карте свободный район. Его площадь добавится государству, район будет требовать ежегодного содержания.";
+  if(t==="claim")return "Нажмите район: свободный можно включить в государство за 15 млрд + 1 млрд за каждые 10 км от города от 100 тыс.; у своего района выберите регион.";
+  if(t==="road")return "Выберите два города. Для нового участка задайте класс дороги; повторно выберите следующий класс, чтобы повысить существующий участок.";
   if(t==="road"){const cls=selectedRoadClass(),desc={local:"дешевле и медленнее",regional:"обычная скорость и цена",national:"быстрее, дороже и заметнее издалека",international:S.ext.length?"для связи с соседним государством":"требует включённых соседних государств"}[cls];return "Класс: "+ROAD_CLASS_LABELS[cls]+" — "+desc+". Выберите два города; цена участка видна у курсора, содержание будет списываться каждый год. "+(cls==="international"&&!S.ext.length?"Соседние государства сейчас отключены. ":"")+"Максимальный пролёт моста — 18 км.";}
   if(t==="rail")return "Щёлкайте по городам один за другим, каждый участок строится сразу, цена видна у курсора. Щелчок по пустому месту прерывает цепочку. Максимальный пролёт моста через море — 18 км.";
   if(t==="up")return "Щёлкните по двум соседним городам, чтобы сделать дорогу или железную дорогу между ними скоростной.";
@@ -2324,7 +2351,7 @@ function setTab(t,quiet){TAB=t;document.querySelectorAll("[data-tab]").forEach(b
 document.addEventListener("click",e=>{const b=e.target.closest("[data-tool]");if(b)setTool(b.dataset.tool);});
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
 $("#viewR").addEventListener("click",()=>setView("region"));$("#viewC").addEventListener("click",()=>setView("city"));$("#openPlan").addEventListener("click",()=>setView("city"));
-document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{LAYER=b.dataset.layer;cmode=LAYER==="spec"?"spec":"growth";ZONE.show=LAYER==="zones";
+document.querySelectorAll("[data-layer]").forEach(b=>b.addEventListener("click",()=>{LAYER=b.dataset.layer;if(LAYER!=="territory")$("#territoryPopup").hidden=true;cmode=LAYER==="spec"?"spec":"growth";ZONE.show=LAYER==="zones";
   document.querySelectorAll("[data-layer]").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));$("#probe").hidden=true;drawLegend();drawRegion();}));
 $("#roadClassSelect").addEventListener("change",()=>{toolButtons();drawRegion();});
 const budgetDialog=$("#budgetDialog");$("#budgetKpi").addEventListener("click",()=>{drawBudget();budgetDialog.showModal();});$("#budgetClose").addEventListener("click",()=>budgetDialog.close());budgetDialog.addEventListener("click",e=>{if(e.target===budgetDialog)budgetDialog.close();});
@@ -2393,12 +2420,12 @@ function drawLegend(){const box=$("#legend");let h="";
     else if(LAYER==="acc")h="<b>Время в пути от города "+esc(S.cities[S.sel].name)+"</b>"+gradHtml(ARAMP.map(a=>rgb(a)),["0","1 ч","2 ч","3 ч","4 ч"],"Линии проведены через каждые 30 минут. Учтены дороги, железные дороги, местный подъезд и авиарейсы по расписанию. Другой город выбирается щелчком по карте.");
     else if(LAYER==="airlinks")h="<b>Плотность авиасвязей</b><div class=\"legend\"><span><i class=\"ln\" style=\"border-top:2px solid var(--c-air)\"></i>меньше пассажиров</span><span><i class=\"ln\" style=\"border-top:7px solid var(--c-air)\"></i>больше пассажиров</span></div><p class=\"note\">Толщина линии учитывает расчётный пассажиропоток за год; расписание задаётся рейсами в месяц. Частота сокращает ожидание, повышает доступную вместимость и улучшает доступность городов.</p>";
     else if(LAYER==="cargo")h="<b>Грузовые маршруты</b><div class=\"legend\"><span><i class=\"ln\" style=\"border-top:4px solid #72D7F4\"></i>морской</span><span><i class=\"ln\" style=\"border-top:4px solid #6CE0B4\"></i>речной</span></div><p class=\"note\">Линии проходят по воде. В таблице маршрутов отображаются конкретные товары, объём поставок в тоннах за год и их стоимость.</p>";
-    else if(LAYER==="territory")h="<b>Территория государства</b><div class=\"legend\"><span><i style=\"background:#9CA5A0\"></i>свободный район</span><span><i style=\"background:var(--accent)\"></i>район государства</span><span><i style=\"background:var(--grow)\"></i>граница регионов</span></div><p class=\"note\">Щёлкните по свободному району инструментом «Район», чтобы присоединить его. Цветные границы показывают регионы; тонкие внутренние линии — районы.</p>";
+    else if(LAYER==="territory")h="<b>Территория государства</b><div class=\"legend\"><span><i style=\"background:#9CA5A0\"></i>свободный район</span><span><i style=\"background:var(--accent)\"></i>район государства</span><span><i style=\"background:var(--grow)\"></i>граница регионов</span></div><p class=\"note\">Нажмите на район, чтобы открыть его меню. Свободный район присоединяется за 15 млрд плюс 1 млрд за каждые начатые 10 км от ближайшего города с населением от 100 тыс. Включённый район можно сразу перевести в регион.</p>";
     else if(LAYER==="nature")h="<b>Природные биомы</b><div class=\"legend\">"+BIOMES.slice(1).map(x=>"<span><i style=\"background:"+x.color+"\"></i>"+x.name+"</span>").join("")+"</div><p class=\"note\">Биом зависит от широты, осадков, близости океана и высоты рельефа. Горные цепи возникают на сходящихся границах литосферных плит.</p>";
     else h="<p class=\"note\">Цвет территории показывает центр, к которому она тянется сильнее всего с учётом дорог. Пунктир соединяет город с центром, которому он подчиняется.</p>";
     if(LAYER==="airlinks"||LAYER==="cargo")h+="<p class=\"note\" style=\"margin-top:6px\">Диспетчерский режим: фон карты затемнён, показаны узлы и линии выбранного вида транспорта.</p>";
     else h+=ROAD_LG+"<p class=\"note\" style=\"margin-top:6px\">Планетарный масштаб: столица и города от 3 млн; континентальный: областные центры; региональный: крупные города и области; локальный: все города. Национальные и международные дороги видны издалека, региональные и местные появляются при приближении.</p><p class=\"note\" style=\"margin-top:6px\">Щелчок по городу открывает карточку, двойной щелчок открывает план. Колесо мыши меняет масштаб.</p>";}
-  else{if(CLAYER==="plan")h="<div class=\"legend\"><span><i style=\"background:var(--c-hist)\"></i>старый центр</span><span><i style=\"background:var(--c-mid)\"></i>5–9 этажей</span><span><i style=\"background:var(--c-high)\"></i>высотная</span><span><i style=\"background:var(--c-sky)\"></i>небоскрёбы</span><span><i style=\"background:var(--c-izhs)\"></i>ИЖС</span><span><i style=\"background:var(--c-ind)\"></i>промзона</span><span><i style=\"background:var(--c-aband)\"></i>пустует</span><span><i style=\"background:var(--c-biz)\"></i>деловой центр</span><span><i class=\"ln\" style=\"border-top:3px solid var(--c-metro)\"></i>метро</span><span><i class=\"ln\" style=\"border-top:4px solid var(--c-air)\"></i>ВПП</span><span><i style=\"background:var(--c-roadfill);border:2px solid var(--ink)\"></i>вокзал</span></div>";
+  else{if(CLAYER==="plan")h="<div class=\"legend\"><span><i style=\"background:var(--c-hist)\"></i>старый центр</span><span><i style=\"background:var(--c-mid)\"></i>5–9 этажей</span><span><i style=\"background:var(--c-high)\"></i>высотная</span><span><i style=\"background:var(--c-sky)\"></i>небоскрёбы</span><span><i style=\"background:var(--c-izhs)\"></i>ИЖС</span><span><i style=\"background:var(--c-ind)\"></i>промзона</span><span><i style=\"background:var(--c-aband)\"></i>пустует</span><span><i style=\"background:var(--c-biz)\"></i>деловой центр</span><span><i class=\"ln\" style=\"border-top:3px solid var(--c-metro)\"></i>метро</span><span><i class=\"ln\" style=\"border-top:4px solid var(--c-air)\"></i>аэропорт</span><span><i style=\"background:var(--c-roadfill);border:2px solid var(--ink)\"></i>вокзал</span></div>";
     else if(CLAYER==="dens")h="<b>Плотность населения</b>"+gradHtml(DRAMP,["300","1000","3000","10 тыс.","60 тыс."],"Человек на км² в квартале 150 × 150 м. Наведите курсор на квартал, чтобы увидеть точное значение.");
     else h="<b>Цена земли</b>"+gradHtml(LRAMP,["10","100","1000","10 тыс.","30 тыс."],"Рублей за м². Дороже в центре, у станций метро, у делового центра и вдоль дорог, дешевле в промзонах и на заброшенных участках.");}
   if(box.dataset.h!==h){box.innerHTML=h;box.dataset.h=h;}$("#cityScale").hidden=VIEW!=="city";}

@@ -174,7 +174,9 @@ function hintText(t) {
   if (t === "found")
     return "Выберите место для нового города. У курсора видны ресурсы и цена. Esc отменяет.";
   if (t === "claim")
-    return "Выберите на карте свободный район. Его площадь добавится государству, район будет требовать ежегодного содержания.";
+    return "Нажмите район: свободный можно включить в государство за 15 млрд + 1 млрд за каждые 10 км от города от 100 тыс.; у своего района выберите регион.";
+  if (t === "road")
+    return "Выберите два города. Для нового участка задайте класс дороги; повторно выберите следующий класс, чтобы повысить существующий участок.";
   if (t === "road") {
     const cls = selectedRoadClass(),
       desc = {
@@ -308,6 +310,7 @@ export function setupViews() {
   document.querySelectorAll<HTMLElement>("[data-layer]").forEach((b) =>
     b.addEventListener("click", () => {
       setLAYER(b.dataset.layer);
+      if (LAYER !== "territory") $("#territoryPopup").hidden = true;
       setCmode(LAYER === "spec" ? "spec" : "growth");
       ZONE.show = LAYER === "zones";
       document

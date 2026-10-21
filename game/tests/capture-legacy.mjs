@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const legacy = fs.readFileSync(path.join(here, "../legacy/index.html"), "utf8");
 const HOOK =
-  "window.__hook={init,stepMonth,found,canFound,foundCost,buildLink,doAct,canAct,S:()=>S};";
+  "window.__hook={init,stepMonth,found,canFound,foundCost,buildLink,doAct,canAct,districtAt,claimDistrict,makeRuralSites,evaluate,S:()=>S};";
 const marker = "\n})();\n</script>";
 if (!legacy.includes(marker)) throw new Error("не найден конец скрипта");
 const patched = legacy.replace(marker, "\n" + HOOK + "\n})();\n</script>");

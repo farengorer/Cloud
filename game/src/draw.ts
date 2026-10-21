@@ -49,11 +49,15 @@ import {
   AIR_MAX_FREQ,
   airFreqCost,
   airRouteStats,
+  airportDefaultCode,
+  airportLevelText,
   byKey,
   dist,
+  evaluate,
   geoXY,
   linkBetween,
   linkKm,
+  logEv,
   nearX,
   wrapX,
 } from "./model";
@@ -244,7 +248,7 @@ export function cityVisibleAtTier(c, tier, centers) {
   if (tier === 2) return !!c.govc || centers.has(c.i) || pop >= 250000;
   return true;
 }
-const ROAD_CLASS_RANK = { international: 0, national: 1, regional: 2, local: 3 };
+export const ROAD_CLASS_RANK = { international: 0, national: 1, regional: 2, local: 3 };
 export function roadClass(r, centers = districtCapitalIds()) {
   const a = byKey(r.a),
     b = byKey(r.b),
@@ -353,19 +357,29 @@ function placeLabels(
     ctx.fillStyle = rgb(C["ink-soft"]);
     halo(ctx, fmtPop(o.e.P), best.x + ew / 2, best.y + 24);
   });
-  const order = visible.slice().sort((a, b) => Number(b.i === S.sel) - Number(a.i === S.sel) || b.P - a.P);
+  const order = visible
+    .slice()
+    .sort((a, b) => Number(b.i === S.sel) - Number(a.i === S.sel) || b.P - a.P);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   order.forEach((c) => {
-    const r = radius(c, s) + 3,
+    const dispatch = LAYER === "airlinks",
+      r = radius(c, s) + 3,
       cx = c.x * s,
       cy = c.y * s,
-      sub =
-        (c.sats && c.sats.length ? "агломерация " + fmtPop(c.PA) : fmtPop(c.P)) +
-        (cmode === "spec" ? " · " + c.spec : "");
-    const fs = Math.round(clamp(11 + 2.3 * Math.log10(Math.max(c.P, 1000) / 1000), 11, 19)),
-      nm = c.P >= 250000 ? c.name.toUpperCase() : c.name,
-      nf = (c.P >= 50000 ? "700 " : "600 ") + fs + "px " + FONT.d;
+      sub = dispatch
+        ? c.airportName || "Аэропорт " + c.name
+        : (c.sats && c.sats.length ? "агломерация " + fmtPop(c.PA) : fmtPop(c.P)) +
+          (cmode === "spec" ? " · " + c.spec : "");
+    const fs = dispatch
+        ? 13
+        : Math.round(clamp(11 + 2.3 * Math.log10(Math.max(c.P, 1000) / 1000), 11, 19)),
+      nm = dispatch
+        ? (c.airportCode || airportDefaultCode(c.name, c.i)).toUpperCase()
+        : c.P >= 250000
+          ? c.name.toUpperCase()
+          : c.name,
+      nf = (dispatch || c.P >= 50000 ? "700 " : "600 ") + fs + "px " + FONT.d;
     ctx.font = nf;
     const w1 = ctx.measureText(nm).width;
     ctx.font = "11px " + FONT.m;
@@ -918,7 +932,13 @@ export function drawRegion() {
         ctx.arc(c.x * s, c.y * s, r + 4, 0, Math.PI * 2);
         ctx.stroke();
       }
-      if (c.air) plane(ctx, c.x * s - r * 0.75, c.y * s - r * 0.75, c.runway ? 6.5 : 5);
+      if (c.air)
+        plane(
+          ctx,
+          c.x * s - r * 0.75,
+          c.y * s - r * 0.75,
+          5 + Math.min(3, (c.airLevel || 1) * 0.2),
+        );
       if (c.pw && (c.pw.gres || c.pw.ges || c.pw.aes)) {
         const bx = c.x * s + r * 0.8,
           by = c.y * s - r * 0.9;
@@ -1055,9 +1075,34 @@ export function drawRegion() {
 const off = document.createElement("canvas");
 off.width = G;
 off.height = G;
+function drawAirportIdentity(c) {
+  const box = $("#airportIdentity");
+  if (!box) return;
+  if (!c.air) {
+    box.innerHTML = "";
+    box.dataset.sig = "";
+    return;
+  }
+  const sig = [c.i, c.airportName, c.airportCode, c.airLevel].join("|");
+  if (box.dataset.sig === sig || box.contains(document.activeElement)) return;
+  box.dataset.sig = sig;
+  box.innerHTML =
+    '<div class="airport-identity"><label>Название аэропорта<input id="airportNameInput" maxlength="40" value="' +
+    esc(c.airportName || "Аэропорт " + c.name) +
+    '"></label><label>Код аэропорта<input id="airportCodeInput" maxlength="3" value="' +
+    esc(c.airportCode || airportDefaultCode(c.name, c.i)) +
+    '" aria-label="Трёхбуквенный код аэропорта"></label><button type="button" data-airport-save>Сохранить</button><span class="note" role="status">Уровень ' +
+    (c.airLevel || 1) +
+    " · " +
+    airportLevelText(c.airLevel || 1) +
+    " пассажиров в год · загрузка " +
+    Math.round(c.paxLoad * 100) +
+    "%</span></div>";
+}
 function drawAirRoutes(c) {
   const box = $("#airRoutesBox");
   if (!box) return;
+  drawAirportIdentity(c);
   const routes = (S.airRoutes || [])
     .map((r, i) => ({ r, i, other: r.a === c.i ? r.b : r.b === c.i ? r.a : null }))
     .filter((x) => x.other != null);
@@ -1105,7 +1150,7 @@ function drawAirRoutes(c) {
     html +=
       '<button type="button" data-tool="airline" aria-pressed="false">Добавить авиалинию</button>';
   html +=
-    '<p class="note">Спрос зависит от населения обоих городов, расстояния и частоты сообщения. Пассажиры в год ограничены спросом, числом мест и пропускной способностью терминалов.</p>';
+    '<p class="note">Спрос зависит от населения обоих городов, расстояния и частоты сообщения. Годовой поток ограничен спросом, числом рейсов и ёмкостью аэропортов.</p>';
   if (box.dataset.h !== html) {
     box.innerHTML = html;
     box.dataset.h = html;
@@ -1289,7 +1334,7 @@ export function drawCity() {
       ctx.restore();
     }
     if (c.rw) {
-      const L = (c.runway ? 20 : 12) / 2,
+      const L = 6,
         ax = c.rw.x - Math.cos(c.rw.th) * L,
         ay = c.rw.y - Math.sin(c.rw.th) * L,
         bx = c.rw.x + Math.cos(c.rw.th) * L,
@@ -1313,11 +1358,7 @@ export function drawCity() {
       const tx = c.rw.x + Math.cos(c.rw.th + Math.PI / 2) * 3,
         ty = c.rw.y + Math.sin(c.rw.th + Math.PI / 2) * 3;
       ctx.fillStyle = rgb(C["c-air"]);
-      for (let t = 0; t < c.term; t++) {
-        const ox = Math.cos(c.rw.th) * (t * 2.2 - 1),
-          oy = Math.sin(c.rw.th) * (t * 2.2 - 1);
-        ctx.fillRect((tx + ox) * s - s, (ty + oy) * s - s, 2 * s, 2 * s);
-      }
+      ctx.fillRect(tx * s - s, ty * s - s, 2 * s, 2 * s);
     }
     drawCityOverlays(ctx, c, s);
     ctx.restore();
@@ -1386,7 +1427,13 @@ export function drawCity() {
     [
       "Аэропорт",
       c.air
-        ? (c.runway ? "3000 м" : "1800 м") + ", загрузка " + Math.round(c.paxLoad * 100) + "%"
+        ? "уровень " +
+          (c.airLevel || 1) +
+          " · " +
+          airportLevelText(c.airLevel || 1) +
+          " пассажиров/год · загрузка " +
+          Math.round(c.paxLoad * 100) +
+          "%"
         : "нет",
     ],
     [
@@ -1502,6 +1549,11 @@ function actDesc(c, k, a) {
       " груза в год"
     );
   }
+  if (k === "air") return "код и название аэропорта задаются в разделе «Авиасообщение»";
+  if (k === "airUpgrade") {
+    const n = Math.min(10, (c.airLevel || 1) + 1);
+    return "уровень " + n + " · до " + airportLevelText(n) + " пассажиров в год";
+  }
   if (k === "station")
     return c.station
       ? c.station >= 5
@@ -1520,6 +1572,8 @@ function actCount(c, k) {
   if (k === "station") return c.station || 0;
   if (k === "seaPort") return portLevel(c, "sea") ? portLevelName(portLevel(c, "sea")) : 0;
   if (k === "riverPort") return portLevel(c, "river") ? portLevelName(portLevel(c, "river")) : 0;
+  if (k === "air") return c.air ? "уровень " + (c.airLevel || 1) : 0;
+  if (k === "airUpgrade") return c.air ? "уровень " + (c.airLevel || 1) : 0;
   if (ACT[k].unique) return 0;
   return k === "hosp"
     ? c.hosp
@@ -1537,9 +1591,7 @@ function actCount(c, k) {
                 ? c.metro.length
                 : k === "mext"
                   ? stations(c)
-                  : k === "term"
-                    ? c.term
-                    : 0;
+                  : 0;
 }
 function drawActs(c) {
   const el = $("#acts");
@@ -1864,7 +1916,7 @@ const FIN_IN_LABELS = {
     road_regional: "Строительство региональных дорог",
     road_national: "Строительство национальных дорог",
     road_international: "Строительство международных дорог",
-    roadUpgrade: "Ускорение дорог",
+    roadUpgrade: "Повышение класса и скорости дорог",
     roadMaintain_local: "Содержание местных дорог",
     roadMaintain_regional: "Содержание региональных дорог",
     roadMaintain_national: "Содержание национальных дорог",
@@ -1872,7 +1924,7 @@ const FIN_IN_LABELS = {
     railBuild: "Строительство ж/д",
     railMaintain: "Содержание ж/д",
     aviation: "Новые авиалинии и увеличение частоты",
-    airportBuild: "Аэропорты, ВПП и терминалы",
+    airportBuild: "Аэропорты и рост их пропускной способности",
     airOperations: "Работа аэропортов и рейсов",
     ports: "Морские и речные порты",
     cargoBuild: "Строительство грузовых маршрутов",
@@ -2101,4 +2153,36 @@ export function render() {
   onRender();
   $("#regionTitle").textContent = regionName();
   document.title = regionName();
+}
+
+export function setupDraw() {
+  $("#airportIdentity").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-airport-save]")) return;
+    const c = S.cities[S.sel],
+      name = $("#airportNameInput").value.trim(),
+      code = $("#airportCodeInput").value.trim().toUpperCase(),
+      status = $("#airportIdentity [role=status]");
+    if (!c || !c.air) return;
+    if (!name) {
+      status.textContent = "Введите название аэропорта.";
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(code)) {
+      status.textContent = "Код должен состоять ровно из трёх латинских букв.";
+      return;
+    }
+    if (S.cities.some((o) => o !== c && o.air && o.airportCode === code)) {
+      status.textContent = "Этот код уже занят другим аэропортом.";
+      return;
+    }
+    c.airportName = name;
+    c.airportCode = code;
+    logEv("Аэропорт города " + c.name + " переименован: " + name + " (" + code + ")");
+    boxReset();
+    evaluate();
+    render();
+    function boxReset() {
+      $("#airportIdentity").dataset.sig = "";
+    }
+  });
 }
