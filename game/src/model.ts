@@ -792,9 +792,12 @@ export function init(seed, opts?) {
     tg: opts.tg || 2,
     planet: !!opts.planet,
     worldVersion: opts.worldVersion === 1 ? 1 : 2,
+    // У обычной партии карты регионов нет, значение остаётся прежним.
     adminMapVersion: Number.isFinite(+opts.adminMapVersion)
       ? +opts.adminMapVersion
-      : REGION_MAP_VERSION,
+      : opts.planet
+        ? REGION_MAP_VERSION
+        : 3,
     cultureId,
     continentCount: opts.continentCount || 5,
     continentNameStyle: opts.continentNameStyle || "geographic",
