@@ -289,19 +289,21 @@ describe("интерфейс", () => {
       const S = h.S(),
         c = S.cities[0];
       let free = -1;
-      for (const [dx, dy] of [
-        [60, 0],
-        [-60, 0],
-        [0, 60],
-        [0, -60],
-        [90, 90],
-      ]) {
-        const d = h.districtAt(c.x + dx, c.y + dy);
-        if (d >= 0 && !S.districtById.has(d)) {
-          free = d;
-          break;
+      for (let r = 40; r <= 400 && free < 0; r += 40)
+        for (const [dx, dy] of [
+          [r, 0],
+          [-r, 0],
+          [0, r],
+          [0, -r],
+          [r, r],
+          [-r, r],
+        ]) {
+          const d = h.districtAt(c.x + dx, c.y + dy);
+          if (d >= 0 && !S.districtById.has(d)) {
+            free = d;
+            break;
+          }
         }
-      }
       const q = free >= 0 ? h.regionClaimCost(free) : null;
       for (let i = 0; i < 12; i++) h.stepMonth();
       return {
