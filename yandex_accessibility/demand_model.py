@@ -76,11 +76,12 @@ def free_skim(net, nodes, base):
     return D[[lut[n] for n in nodes]][:, nodes]
 
 
-def assign(net, od, nodes, t0, cap, theta, iters=8):
+def assign(net, od, nodes, t0, cap, theta, iters=8, dnodes=None):
     """od — поездки между районами (по строкам: из района i в район j), theta — авт/ч на одну поездку.
     Равновесие методом последовательных средних. Возвращает потоки по рёбрам и итоговое время ребра."""
     n_e = len(net.u)
     flow = np.zeros(n_e)
+    dn = nodes if dnodes is None else dnodes
     un = np.unique(nodes)
     for it in range(iters):
         t = t0 * (1 + BPR_A * (flow / cap) ** BPR_B)
@@ -90,7 +91,7 @@ def assign(net, od, nodes, t0, cap, theta, iters=8):
         for k, o in enumerate(un):
             rows = np.flatnonzero(nodes == o)
             dem = np.zeros(net.n)
-            np.add.at(dem, nodes, od[rows].sum(0))  # спрос из узла o в каждый узел назначения
+            np.add.at(dem, dn, od[rows].sum(0))  # спрос из узла o в каждый узел назначения
             dem[o] = 0
             order = np.argsort(-dist[k])
             pk = pred[k]
@@ -103,3 +104,11 @@ def assign(net, od, nodes, t0, cap, theta, iters=8):
         flow = new if it == 0 else flow + (new - flow) / (it + 1)
     t = t0 * (1 + BPR_A * (flow / cap) ** BPR_B)
     return flow, t
+
+
+def free_skim_rect(net, onodes, dnodes, base):
+    A = csr_matrix((base, (net.u, net.v)), shape=(net.n, net.n))
+    un = np.unique(onodes)
+    D = dijkstra(A, directed=True, indices=un)
+    lut = {n: k for k, n in enumerate(un)}
+    return D[[lut[n] for n in onodes]][:, dnodes]
