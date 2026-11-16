@@ -113,3 +113,32 @@ def road_exposure(S, theta=THETA_AM, iters=8):
             W[e] = acc[i]
             acc[p] += acc[i]
     return dict(flow=f, t=t, W=W, delay=delay, exposure=W * delay)
+
+
+def node_context(S, flow, radius_m=400.0):
+    """Для каждого узла сети: транспортный поток (авт/ч, оба направления, утро), торговля рядом (чеки и выручка за неделю
+    в радиусе), население и МПТ района (на км²). Только для анализа «перспективной торговли»."""
+    import geopandas as gpd
+    net = S.net
+    n = net.n
+    f_node = np.zeros(n)
+    np.add.at(f_node, net.u, flow)
+    np.add.at(f_node, net.v, flow)
+    xy = np.array(net.nodes, float)
+    hx = S.hx
+    c = hx.geometry.centroid
+    ht = cKDTree(np.c_[c.x, c.y])
+    near = ht.query_ball_point(xy, radius_m)
+    rec = np.array([hx["receipts"].to_numpy()[i].sum() if len(i) else 0.0 for i in near])
+    rev = np.array([np.nansum(hx["rev"].to_numpy()[i]) if len(i) else 0.0 for i in near])
+    cells = np.array([len(i) for i in near])
+    z = S.g[["Население_сущ", "МПТ_сущ", "Адм_район", "geometry"]].copy()
+    z["dens"] = (z["Население_сущ"] + z["МПТ_сущ"]) / (z.area / 1e6)
+    pts = gpd.GeoDataFrame({"i": np.arange(n)}, geometry=gpd.points_from_xy(xy[:, 0], xy[:, 1]), crs=32637)
+    j = gpd.sjoin(pts, z.reset_index(), how="left", predicate="within").drop_duplicates("i").set_index("i")
+    dens = j["dens"].reindex(range(n)).to_numpy()
+    pop = j["Население_сущ"].reindex(range(n)).to_numpy()
+    jobs = j["МПТ_сущ"].reindex(range(n)).to_numpy()
+    return pd.DataFrame(dict(x=xy[:, 0], y=xy[:, 1], flow=f_node, receipts=rec, revenue=rev, cells=cells, dens=dens, pop=pop, jobs=jobs,
+                             rank=pd.Series(net.rank).groupby(net.u).max().reindex(range(n)).to_numpy(),
+                             район=j["Адм_район"].reindex(range(n)).to_numpy()))
